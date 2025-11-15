@@ -5,7 +5,7 @@ mod args;
 mod ai_query;
 mod tui;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     let args = args::parse();
 
