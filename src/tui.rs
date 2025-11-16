@@ -146,7 +146,7 @@ impl TuiState {
             .iter()
             .copied()
             .rev()
-            .take(layout[1].width as usize)
+            .take(layout[1].width as usize - 2)
             .rev()
             .enumerate()
             .map(|(idx, val)| (idx as f64, val as f64))
@@ -167,7 +167,7 @@ impl TuiState {
             .x_axis(
                 Axis::default()
                     .style(COLOR_TEXT)
-                    .bounds([0.0, layout[1].width as f64]),
+                    .bounds([0.0, layout[1].width as f64 - 3.0]),
             )
             .y_axis(Axis::default().style(COLOR_TEXT).bounds([0.0, 1.0]))
             .style(COLOR_BORDER)
