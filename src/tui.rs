@@ -81,13 +81,13 @@ impl TuiState {
         let items_strings = state
             .eval
             .iter()
-            .map(|e| format!("{}: {:.3}", e.fragment.path.to_str().unwrap(), e.value))
+            .map(|e| format!("{}:{} {:.3}", e.fragment.path.to_str().unwrap(), e.fragment.first_line, e.value))
             .collect::<Vec<_>>();
         let max_len = items_strings.iter().map(|s| s.len()).max().unwrap_or(0);
 
         let layout = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Fill(1), Constraint::Length(max_len as u16 + 10)].as_ref())
+            .constraints([Constraint::Fill(1), Constraint::Length(max_len as u16 + 2)].as_ref())
             .split(frame.area());
 
         let code = Self::make_code(state.eval.get(state.current_idx).map(|e| &e.fragment));
