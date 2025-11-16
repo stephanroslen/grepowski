@@ -27,7 +27,7 @@ pub struct Args {
         long,
         value_name = "MODEL",
         env = "GREPOWSKI_MODEL",
-        default_value = "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+        default_value = "Qwen/Qwen2.5-Coder-3B-Instruct",
         help = "Model to use for the chat completion"
     )]
     pub model: String,
@@ -47,7 +47,7 @@ pub struct Args {
         long,
         value_name = "URL",
         env = "GREPOWSKI_URL",
-        default_value = "http://127.0.0.1:8080/v1/chat/completions",
+        default_value = "http://127.0.0.1:9081/v1/chat/completions",
         help = "URL of the chat completion endpoint",
         value_hint = clap::ValueHint::Url,
     )]

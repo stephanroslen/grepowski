@@ -1,15 +1,14 @@
-use crate::fragment::Fragment;
-use ratatui::layout::{Constraint, Direction};
-use ratatui::style::{Styled, Stylize};
-use ratatui::symbols::Marker;
-use ratatui::text::{Line};
-use ratatui::widgets::{
-    Axis, Block, BorderType, Borders, Chart, Dataset, Gauge, Padding, Paragraph, Wrap,
-};
-use ratatui::{Frame, style};
+use crate::{fragment::Fragment,fragment_evaluation::FragmentEvaluation};
+use ratatui::{layout::{Constraint, Direction},style::{Color, Styled},symbols::Marker,widgets::{
+    Axis, Block, BorderType, Chart, Dataset, Gauge, ListItem, ListState, Paragraph, Wrap,
+},{DefaultTerminal, Frame, style::palette::tailwind}};
 use std::collections::VecDeque;
-use style::palette::tailwind;
 use tokio::select;
+
+const COLOR_TITLE: Color = tailwind::AMBER.c50;
+const COLOR_HIGHLIGHT: Color = tailwind::AMBER.c100;
+const COLOR_TEXT: Color = tailwind::AMBER.c200;
+const COLOR_BORDER: Color = tailwind::AMBER.c800;
 
 #[derive(Debug, Clone)]
 struct GatherDataState {
@@ -31,18 +30,28 @@ impl GatherDataState {
 }
 
 #[derive(Debug, Clone)]
-enum TuiState {
-    GatherData(GatherDataState),
-    DisplayData,
+struct DisplayDataState {
+    eval: Vec<FragmentEvaluation>,
+    current_idx: usize,
+    list_state: ListState,
 }
 
-fn title_block(title: &str) -> Block<'_> {
-    let title = Line::from(title).centered();
-    Block::new()
-        .borders(Borders::NONE)
-        .padding(Padding::vertical(1))
-        .title(title)
-        .fg(tailwind::AMBER.c50)
+impl DisplayDataState {
+    fn new(eval: Vec<FragmentEvaluation>) -> Self {
+        let current_idx = 0;
+        let list_state = ListState::default();
+        Self {
+            eval,
+            current_idx,
+            list_state,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum TuiState {
+    GatherData(GatherDataState),
+    DisplayData(DisplayDataState),
 }
 
 impl TuiState {
@@ -50,99 +59,153 @@ impl TuiState {
         Self::GatherData(GatherDataState::new(count_max))
     }
 
-    fn render(&self, frame: &mut Frame) {
+    fn render(&mut self, frame: &mut Frame) {
         match self {
             TuiState::GatherData(state) => {
-                let layout = ratatui::layout::Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints(
-                        [Constraint::Fill(1), Constraint::Length(10), Constraint::Length(7)].as_ref(),
-                    )
-                    .split(frame.area());
+                Self::render_gather_data(frame, state);
+            }
+            TuiState::DisplayData(state) => {
+                Self::render_display_data(frame, state);
+            }
+        }
+    }
 
-                let code = match &state.current_fragment {
-                    Some(fragment) => {
-                        let lines: Vec<_> = fragment
-                            .content
-                            .lines()
-                            .map(|l| ratatui::text::Line::from(ratatui::text::Span::raw(l)))
-                            .collect();
-                        let code = Paragraph::new(lines)
-                            .style(tailwind::AMBER.c50)
-                            .wrap(Wrap { trim: false });
-                        let code = code.block(
-                            Block::bordered().border_type(BorderType::Rounded).title(
-                                format!(
-                                    "{}:{}",
-                                    fragment.path.to_str().unwrap(),
-                                    fragment.first_line
-                                )
-                                .set_style(tailwind::AMBER.c800),
-                            ),
-                        );
-                        code
-                    }
-                    None => Paragraph::new("").block(
-                        Block::bordered()
-                            .border_type(BorderType::Rounded)
-                            .title("Current code fragment"),
-                    ),
-                };
+    fn render_display_data(frame: &mut Frame, state: &mut DisplayDataState) {
+        let items_strings = state
+            .eval
+            .iter()
+            .map(|e| format!("{}: {:.3}", e.fragment.path.to_str().unwrap(), e.value))
+            .collect::<Vec<_>>();
+        let max_len = items_strings.iter().map(|s| s.len()).max().unwrap_or(0);
 
-                frame.render_widget(code, layout[0]);
+        let layout = ratatui::layout::Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Fill(1), Constraint::Length(max_len as u16 + 10)].as_ref())
+            .split(frame.area());
 
-                let data: Vec<_> = state
-                    .value_history
-                    .iter()
-                    .copied()
-                    .rev()
-                    .take(layout[1].width as usize)
-                    .rev()
-                    .enumerate()
-                    .map(|(idx, val)| (idx as f64, val as f64))
+        let code = Self::make_code(state.eval.get(state.current_idx).map(|e| &e.fragment));
+
+        frame.render_widget(code, layout[0]);
+
+        let items = items_strings
+            .into_iter()
+            .map(ListItem::new);
+
+        let list = ratatui::widgets::List::new(items)
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .set_style(COLOR_BORDER)
+                    .title("Fragments".set_style(COLOR_TITLE)),
+            )
+            .set_style(COLOR_TEXT)
+            .highlight_style(COLOR_HIGHLIGHT);
+
+        state.list_state.select(Some(state.current_idx));
+
+        frame.render_stateful_widget(list, layout[1], &mut state.list_state);
+    }
+
+    fn render_gather_data(frame: &mut Frame, state: &GatherDataState) {
+        let layout = ratatui::layout::Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Fill(1),
+                    Constraint::Length(10),
+                    Constraint::Length(7),
+                ]
+                .as_ref(),
+            )
+            .split(frame.area());
+
+        let current_fragment = state.current_fragment.as_ref();
+
+        let code = Self::make_code(current_fragment);
+
+        frame.render_widget(code, layout[0]);
+
+        let data: Vec<_> = state
+            .value_history
+            .iter()
+            .copied()
+            .rev()
+            .take(layout[1].width as usize)
+            .rev()
+            .enumerate()
+            .map(|(idx, val)| (idx as f64, val as f64))
+            .collect();
+        let data = vec![
+            Dataset::default()
+                .marker(Marker::Dot)
+                .style(COLOR_TEXT)
+                .data(&data),
+        ];
+
+        let chart = Chart::new(data)
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title("Value history".set_style(COLOR_TITLE)),
+            )
+            .x_axis(
+                Axis::default()
+                    .style(COLOR_TEXT)
+                    .bounds([0.0, layout[1].width as f64]),
+            )
+            .y_axis(Axis::default().style(COLOR_TEXT).bounds([0.0, 1.0]))
+            .style(COLOR_BORDER);
+
+        frame.render_widget(chart, layout[1]);
+
+        frame.render_widget(
+            Gauge::default()
+                .gauge_style(COLOR_BORDER)
+                .block(
+                    Block::bordered()
+                        .set_style(COLOR_BORDER)
+                        .border_type(BorderType::Rounded)
+                        .title("Progress".set_style(COLOR_TITLE)),
+                )
+                .ratio(state.count as f64 / state.count_max as f64)
+                .label(format!("{}/{}", state.count, state.count_max).set_style(COLOR_TEXT))
+                .use_unicode(true),
+            layout[2],
+        );
+    }
+
+    fn make_code(current_fragment: Option<&Fragment>) -> Paragraph<'_> {
+        match current_fragment {
+            Some(fragment) => {
+                let lines: Vec<_> = fragment
+                    .content
+                    .lines()
+                    .map(|l| ratatui::text::Line::from(ratatui::text::Span::raw(l)))
                     .collect();
-                let data = vec![
-                    Dataset::default()
-                        .marker(Marker::Dot)
-                        .style(tailwind::AMBER.c50)
-                        .data(&data),
-                ];
-
-                let chart = Chart::new(data)
-                    .block(
-                        Block::bordered()
-                            .border_type(BorderType::Rounded)
-                            .title("Value history".set_style(tailwind::AMBER.c800)),
-                    )
-                    .x_axis(
-                        Axis::default()
-                            .style(tailwind::AMBER.c800)
-                            .bounds([0.0, layout[1].width as f64]),
-                    )
-                    .y_axis(
-                        Axis::default()
-                            .style(tailwind::AMBER.c800)
-                            .bounds([0.0, 1.0]),
-                    )
-                    .style(tailwind::AMBER.c50);
-
-                frame.render_widget(chart, layout[1]);
-
-                frame.render_widget(
-                    Gauge::default()
-                        .block(title_block("Progress"))
-                        .gauge_style(tailwind::AMBER.c800)
-                        .ratio(state.count as f64 / state.count_max as f64)
-                        .label(
-                            format!("{}/{}", state.count, state.count_max)
-                                .set_style(tailwind::AMBER.c200),
-                        )
-                        .use_unicode(true),
-                    layout[2],
+                let code = Paragraph::new(lines)
+                    .set_style(COLOR_TEXT)
+                    .wrap(Wrap { trim: false });
+                let code = code.block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .set_style(COLOR_BORDER)
+                        .title(
+                            format!(
+                                "{}:{}",
+                                fragment.path.to_str().unwrap(),
+                                fragment.first_line
+                            )
+                            .set_style(COLOR_TITLE),
+                        ),
                 );
+                code
             }
-            TuiState::DisplayData => {
-            }
+            None => Paragraph::new("").block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .set_style(COLOR_BORDER)
+                    .title("Current code fragment".set_style(COLOR_TITLE)),
+            ),
         }
     }
 }
@@ -152,62 +215,85 @@ pub enum TuiEvent {
     GatherNextFragment(Fragment),
     GatherNextValue(f32),
     GatherIncrementCount,
-    SwitchToDisplayData,
+    SwitchToDisplayData(Vec<FragmentEvaluation>),
+    Up,
+    Down,
     Quit,
 }
 
-pub async fn run(
-    mut rx: tokio::sync::mpsc::Receiver<TuiEvent>,
-    count_max: usize,
-    refresh_interval: std::time::Duration,
-) -> anyhow::Result<()> {
-    let mut timer = tokio::time::interval(refresh_interval);
-    timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+pub struct Tui {
+    timer: tokio::time::Interval,
+    tui_state: TuiState,
+}
 
-    let mut tui_state = TuiState::new(count_max);
+impl Tui {
+    pub fn new(count_max: usize, refresh_interval: std::time::Duration) -> Self {
+        let mut timer = tokio::time::interval(refresh_interval);
+        timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let tui_state = TuiState::new(count_max);
+        Self { timer, tui_state }
+    }
 
-    let mut terminal = ratatui::init();
-
-    let result = loop {
-        select! {
-            _ = timer.tick() => {
-                match
-                terminal.draw(|frame| tui_state.render(frame)) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        break Err(anyhow::Error::msg(e));
-                    }
-                }
-            },
-            event = rx.recv() => {
-                match event {
-                    Some(TuiEvent::GatherNextFragment(fragment)) => {
-                        let TuiState::GatherData(state) = &mut tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
-                        state.current_fragment = Some(fragment);
+    async fn main_loop(
+        &mut self,
+        mut rx: tokio::sync::mpsc::Receiver<TuiEvent>,
+        terminal: &mut DefaultTerminal,
+    ) -> anyhow::Result<()> {
+        loop {
+            select! {
+                _ = self.timer.tick() => {
+                        terminal.draw(|frame| self.tui_state.render(frame))?;
                     },
-                    Some(TuiEvent::GatherNextValue(value)) => {
-                        let TuiState::GatherData(state) = &mut tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
-                        state.value_history.push_back(value);
-                    },
-                    Some(TuiEvent::GatherIncrementCount) => {
-                        let TuiState::GatherData(state) = &mut tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
-                        state.count += 1;
-                    },
-                    Some(TuiEvent::SwitchToDisplayData) => {
-                        tui_state = TuiState::DisplayData;
-                    }
-                    Some(TuiEvent::Quit) => {
-                        break Ok(())
-                    },
-                    None => {
-                        break Err(anyhow::anyhow!("No event received!"))
+                event = rx.recv() => {
+                    match event {
+                        Some(TuiEvent::GatherNextFragment(fragment)) => {
+                            let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
+                            state.current_fragment = Some(fragment);
+                        },
+                        Some(TuiEvent::GatherNextValue(value)) => {
+                            let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
+                            state.value_history.push_back(value);
+                        },
+                        Some(TuiEvent::GatherIncrementCount) => {
+                            let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
+                            state.count += 1;
+                        },
+                        Some(TuiEvent::SwitchToDisplayData(data)) => {
+                            self.tui_state = TuiState::DisplayData(DisplayDataState::new(data));
+                        }
+                        Some(TuiEvent::Quit) => {
+                            return Ok(())
+                        },
+                        Some(TuiEvent::Up) => {
+                            if let TuiState::DisplayData(state) = &mut self.tui_state {
+                                if state.current_idx > 0 {
+                                    state.current_idx -= 1;
+                                }
+                            }
+                        },
+                        Some(TuiEvent::Down) => {
+                            if let TuiState::DisplayData(state) = &mut self.tui_state {
+                                if state.current_idx < state.eval.len() - 1 {
+                                    state.current_idx += 1;
+                                }
+                            }
+                        }
+                        None => {
+                            return Err(anyhow::anyhow!("No event received!"))
+                        }
                     }
                 }
             }
         }
-    };
+    }
 
-    ratatui::restore();
+    pub async fn run(mut self, rx: tokio::sync::mpsc::Receiver<TuiEvent>) -> anyhow::Result<()> {
+        let mut terminal = ratatui::init();
 
-    result
+        let result = self.main_loop(rx, &mut terminal).await;
+
+        ratatui::restore();
+
+        result
+    }
 }
