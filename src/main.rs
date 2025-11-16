@@ -1,5 +1,5 @@
 use crate::{
-    ai_query::AI, fragment::Fragment, fragment_evaluation::FragmentEvaluation, tui::TuiEvent,
+    ai_query::AI, fragment::Fragment, fragment_evaluation::FragmentEvaluation, tui::{Nav,TuiEvent},
 };
 use crossterm::event::KeyEventKind;
 use futures_util::{FutureExt, StreamExt};
@@ -86,10 +86,22 @@ async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
                                 break;
                             }
                             crossterm::event::KeyCode::Up => {
-                                tx_tui.send(TuiEvent::Up).await?;
+                                tx_tui.send(TuiEvent::Nav(Nav::Up)).await?;
                             }
                             crossterm::event::KeyCode::Down => {
-                                tx_tui.send(TuiEvent::Down).await?;
+                                tx_tui.send(TuiEvent::Nav(Nav::Down)).await?;
+                            }
+                            crossterm::event::KeyCode::PageUp => {
+                                tx_tui.send(TuiEvent::Nav(Nav::PageUp)).await?;
+                            }
+                            crossterm::event::KeyCode::PageDown => {
+                                tx_tui.send(TuiEvent::Nav(Nav::PageDown)).await?;
+                            }
+                            crossterm::event::KeyCode::Home => {
+                                tx_tui.send(TuiEvent::Nav(Nav::Home)).await?;
+                            }
+                            crossterm::event::KeyCode::End => {
+                                tx_tui.send(TuiEvent::Nav(Nav::End)).await?;
                             }
                             _ => {}
                         }
@@ -135,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
         .flatten()
         .collect::<Vec<_>>();
 
-    let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(2);
+    let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(8);
     let tui = tokio::spawn(
         tui::Tui::new(fragments.len(), std::time::Duration::from_millis(50)).run(rx_tui),
     );

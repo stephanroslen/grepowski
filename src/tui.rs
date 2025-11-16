@@ -6,7 +6,10 @@ use ratatui::{
     widgets::{
         Axis, Block, BorderType, Chart, Dataset, Gauge, ListItem, ListState, Paragraph, Wrap,
     },
-    {DefaultTerminal, Frame, style::{palette::tailwind, Stylize}},
+    {
+        DefaultTerminal, Frame,
+        style::{Stylize, palette::tailwind},
+    },
 };
 use std::collections::VecDeque;
 use tokio::select;
@@ -81,7 +84,14 @@ impl TuiState {
         let items_strings = state
             .eval
             .iter()
-            .map(|e| format!("{}:{} {:.3}", e.fragment.path.to_str().unwrap(), e.fragment.first_line, e.value))
+            .map(|e| {
+                format!(
+                    "{}:{} {:.3}",
+                    e.fragment.path.to_str().unwrap(),
+                    e.fragment.first_line,
+                    e.value
+                )
+            })
             .collect::<Vec<_>>();
         let max_len = items_strings.iter().map(|s| s.len()).max().unwrap_or(0);
 
@@ -222,13 +232,22 @@ impl TuiState {
 }
 
 #[derive(Debug, Clone)]
+pub enum Nav {
+    Up,
+    Down,
+    PageUp,
+    PageDown,
+    Home,
+    End,
+}
+
+#[derive(Debug, Clone)]
 pub enum TuiEvent {
     GatherNextFragment(Fragment),
     GatherNextValue(f32),
     GatherIncrementCount,
     SwitchToDisplayData(Vec<FragmentEvaluation>),
-    Up,
-    Down,
+    Nav(Nav),
     Quit,
 }
 
@@ -275,17 +294,29 @@ impl Tui {
                         Some(TuiEvent::Quit) | None => {
                             return Ok(())
                         },
-                        Some(TuiEvent::Up) => {
+                        Some(TuiEvent::Nav(nav)) => {
                             if let TuiState::DisplayData(state) = &mut self.tui_state {
-                                if state.current_idx > 0 {
-                                    state.current_idx -= 1;
-                                }
-                            }
-                        },
-                        Some(TuiEvent::Down) => {
-                            if let TuiState::DisplayData(state) = &mut self.tui_state {
-                                if state.current_idx < state.eval.len() - 1 {
-                                    state.current_idx += 1;
+                                match nav {
+                                    Nav::Up => {
+                                    state.current_idx = state.current_idx.saturating_sub(1);
+                                    }
+                                    Nav::Down => {
+                                            state.current_idx = std::cmp::min(state.current_idx.saturating_add(1), state.eval.len() - 1);
+                                        }
+                                    Nav::PageUp | Nav::PageDown => {
+                                        let items = terminal.get_frame().area().height as usize - 2;
+                                            match nav {
+                                                Nav::PageUp => state.current_idx = state.current_idx.saturating_sub(items),
+                                                Nav::PageDown => state.current_idx = std::cmp::min(state.current_idx.saturating_add(items), state.eval.len() - 1),
+                                                _ => unreachable!()
+                                            }
+                                    }
+                                    Nav::Home => {
+                                            state.current_idx = 0;
+                                        }
+                                    Nav::End => {
+                                            state.current_idx = state.eval.len() - 1;
+                                        }
                                 }
                             }
                         }
