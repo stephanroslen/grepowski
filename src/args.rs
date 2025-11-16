@@ -5,7 +5,7 @@ pub struct Args {
     #[clap(
         short,
         long,
-        default_value = "20",
+        default_value = "10",
         env = "GREPOWSKI_LINES_PER_BLOCK",
         value_name = "LINES",
         help = "Number of lines per block"
@@ -15,7 +15,7 @@ pub struct Args {
     #[clap(
         short,
         long,
-        default_value = "2",
+        default_value = "3",
         env = "GREPOWSKI_BLOCKS_PER_FRAGMENT",
         value_name = "BLOCKS",
         help = "Number of blocks per fragment"
@@ -27,7 +27,6 @@ pub struct Args {
         long,
         value_name = "MODEL",
         env = "GREPOWSKI_MODEL",
-        default_value = "Qwen/Qwen2.5-Coder-7B-Instruct",
         help = "Model to use for the chat completion"
     )]
     pub model: String,
