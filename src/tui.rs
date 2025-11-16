@@ -272,7 +272,7 @@ impl Tui {
                         Some(TuiEvent::SwitchToDisplayData(data)) => {
                             self.tui_state = TuiState::DisplayData(DisplayDataState::new(data));
                         }
-                        Some(TuiEvent::Quit) => {
+                        Some(TuiEvent::Quit) | None => {
                             return Ok(())
                         },
                         Some(TuiEvent::Up) => {
@@ -288,9 +288,6 @@ impl Tui {
                                     state.current_idx += 1;
                                 }
                             }
-                        }
-                        None => {
-                            return Err(anyhow::anyhow!("No event received!"))
                         }
                     }
                 }

@@ -140,9 +140,9 @@ async fn main() -> anyhow::Result<()> {
         tui::Tui::new(fragments.len(), std::time::Duration::from_millis(50)).run(rx_tui),
     );
 
-    input_and_process(fragments, &std::convert::identity(tx_tui), ai).await?;
+    let result = input_and_process(fragments, &std::convert::identity(tx_tui), ai).await;
 
     tui.await??;
 
-    Ok(())
+    result
 }
