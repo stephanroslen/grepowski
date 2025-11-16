@@ -1,7 +1,13 @@
-use crate::{fragment::Fragment,fragment_evaluation::FragmentEvaluation};
-use ratatui::{layout::{Constraint, Direction},style::{Color, Styled},symbols::Marker,widgets::{
-    Axis, Block, BorderType, Chart, Dataset, Gauge, ListItem, ListState, Paragraph, Wrap,
-},{DefaultTerminal, Frame, style::palette::tailwind}};
+use crate::{fragment::Fragment, fragment_evaluation::FragmentEvaluation};
+use ratatui::{
+    layout::{Constraint, Direction},
+    style::{Color, Styled},
+    symbols::Marker,
+    widgets::{
+        Axis, Block, BorderType, Chart, Dataset, Gauge, ListItem, ListState, Paragraph, Wrap,
+    },
+    {DefaultTerminal, Frame, style::{palette::tailwind, Stylize}},
+};
 use std::collections::VecDeque;
 use tokio::select;
 
@@ -9,6 +15,7 @@ const COLOR_TITLE: Color = tailwind::AMBER.c50;
 const COLOR_HIGHLIGHT: Color = tailwind::AMBER.c100;
 const COLOR_TEXT: Color = tailwind::AMBER.c200;
 const COLOR_BORDER: Color = tailwind::AMBER.c800;
+const COLOR_BACKGROUND: Color = tailwind::BLACK;
 
 #[derive(Debug, Clone)]
 struct GatherDataState {
@@ -87,9 +94,7 @@ impl TuiState {
 
         frame.render_widget(code, layout[0]);
 
-        let items = items_strings
-            .into_iter()
-            .map(ListItem::new);
+        let items = items_strings.into_iter().map(ListItem::new);
 
         let list = ratatui::widgets::List::new(items)
             .block(
@@ -99,7 +104,8 @@ impl TuiState {
                     .title("Fragments".set_style(COLOR_TITLE)),
             )
             .set_style(COLOR_TEXT)
-            .highlight_style(COLOR_HIGHLIGHT);
+            .highlight_style(COLOR_HIGHLIGHT)
+            .bg(COLOR_BACKGROUND);
 
         state.list_state.select(Some(state.current_idx));
 
@@ -154,7 +160,8 @@ impl TuiState {
                     .bounds([0.0, layout[1].width as f64]),
             )
             .y_axis(Axis::default().style(COLOR_TEXT).bounds([0.0, 1.0]))
-            .style(COLOR_BORDER);
+            .style(COLOR_BORDER)
+            .bg(COLOR_BACKGROUND);
 
         frame.render_widget(chart, layout[1]);
 
@@ -169,7 +176,8 @@ impl TuiState {
                 )
                 .ratio(state.count as f64 / state.count_max as f64)
                 .label(format!("{}/{}", state.count, state.count_max).set_style(COLOR_TEXT))
-                .use_unicode(true),
+                .use_unicode(true)
+                .bg(COLOR_BACKGROUND),
             layout[2],
         );
     }
@@ -185,26 +193,29 @@ impl TuiState {
                 let code = Paragraph::new(lines)
                     .set_style(COLOR_TEXT)
                     .wrap(Wrap { trim: false });
-                let code = code.block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .set_style(COLOR_BORDER)
-                        .title(
-                            format!(
-                                "{}:{}",
-                                fragment.path.to_str().unwrap(),
-                                fragment.first_line
-                            )
-                            .set_style(COLOR_TITLE),
-                        ),
-                );
+                let code = code
+                    .block(
+                        Block::bordered()
+                            .border_type(BorderType::Rounded)
+                            .set_style(COLOR_BORDER)
+                            .title(
+                                format!(
+                                    "{}:{}",
+                                    fragment.path.to_str().unwrap(),
+                                    fragment.first_line
+                                )
+                                .set_style(COLOR_TITLE),
+                            ),
+                    )
+                    .bg(COLOR_BACKGROUND);
                 code
             }
             None => Paragraph::new("").block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .set_style(COLOR_BORDER)
-                    .title("Current code fragment".set_style(COLOR_TITLE)),
+                    .title("Current code fragment".set_style(COLOR_TITLE))
+                    .bg(COLOR_BACKGROUND),
             ),
         }
     }
