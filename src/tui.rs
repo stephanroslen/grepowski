@@ -128,8 +128,8 @@ impl TuiState {
             .constraints(
                 [
                     Constraint::Fill(1),
-                    Constraint::Length(10),
-                    Constraint::Length(7),
+                    Constraint::Length(11),
+                    Constraint::Length(5),
                 ]
                 .as_ref(),
             )
