@@ -36,7 +36,7 @@ pub struct Args {
         long,
         value_name = "TEMPERATURE",
         env = "GREPOWSKI_TEMPERATURE",
-        default_value = "0.2",
+        default_value = "0.0",
         help = "Temperature for the chat completion"
     )]
     pub temperature: f32,
