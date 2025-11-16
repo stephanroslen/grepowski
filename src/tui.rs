@@ -128,7 +128,7 @@ impl TuiState {
             .constraints(
                 [
                     Constraint::Fill(1),
-                    Constraint::Length(11),
+                    Constraint::Length(4),
                     Constraint::Length(5),
                 ]
                 .as_ref(),
@@ -146,14 +146,14 @@ impl TuiState {
             .iter()
             .copied()
             .rev()
-            .take(layout[1].width as usize - 2)
+            .take((layout[1].width as usize - 2) * 2)
             .rev()
             .enumerate()
             .map(|(idx, val)| (idx as f64, val as f64))
             .collect();
         let data = vec![
             Dataset::default()
-                .marker(Marker::Dot)
+                .marker(Marker::Braille)
                 .style(COLOR_TEXT)
                 .data(&data),
         ];
@@ -167,7 +167,7 @@ impl TuiState {
             .x_axis(
                 Axis::default()
                     .style(COLOR_TEXT)
-                    .bounds([0.0, layout[1].width as f64 - 3.0]),
+                    .bounds([0.0, (layout[1].width as f64 - 2.0) * 2.0 - 1.0]),
             )
             .y_axis(Axis::default().style(COLOR_TEXT).bounds([0.0, 1.0]))
             .style(COLOR_BORDER)

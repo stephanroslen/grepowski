@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("{:?}", args);
 
-    let system_prompt = "You are an evaluation model. Output only a floating point number in the range 0 to 1 with exactly three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code provided in the user prompt. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not use only extreme values. Spread your outputs across the full range when appropriate. Do not default to the given numbers. Use intermediate values whenever the evidence is partial or suggestive. Respond with the number only.";
+    let system_prompt = "You are an evaluation model. Output only a floating point number in the range 0 to 1 with exactly three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code provided in the user prompt. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not use only extreme values. Spread your outputs across the full range when appropriate. Do not default to the given numbers. Interpolate according to your certainty between them. Use intermediate values whenever the evidence is partial or suggestive. Respond with the number only.";
 
     let ai = ai_query::AI::new(
         args.model,
