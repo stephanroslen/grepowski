@@ -243,6 +243,7 @@ pub enum Nav {
 
 #[derive(Debug, Clone)]
 pub enum TuiEvent {
+    Render,
     GatherNextFragment(Fragment),
     GatherNextValue(f32),
     GatherIncrementCount,
@@ -251,17 +252,15 @@ pub enum TuiEvent {
     Quit,
 }
 
+#[derive(Debug)]
 pub struct Tui {
-    timer: tokio::time::Interval,
     tui_state: TuiState,
 }
 
 impl Tui {
-    pub fn new(count_max: usize, refresh_interval: std::time::Duration) -> Self {
-        let mut timer = tokio::time::interval(refresh_interval);
-        timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    pub fn new(count_max: usize) -> Self {
         let tui_state = TuiState::new(count_max);
-        Self { timer, tui_state }
+        Self { tui_state }
     }
 
     async fn main_loop(
@@ -271,11 +270,10 @@ impl Tui {
     ) -> anyhow::Result<()> {
         loop {
             select! {
-                _ = self.timer.tick() => {
-                        terminal.draw(|frame| self.tui_state.render(frame))?;
-                    },
                 event = rx.recv() => {
                     match event {
+                        Some(TuiEvent::Render) => {
+                            terminal.draw(|frame| self.tui_state.render(frame))?; },
                         Some(TuiEvent::GatherNextFragment(fragment)) => {
                             let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
                             state.current_fragment = Some(fragment);

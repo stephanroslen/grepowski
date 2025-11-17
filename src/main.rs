@@ -1,5 +1,8 @@
 use crate::{
-    ai_query::AI, fragment::Fragment, fragment_evaluation::FragmentEvaluation, tui::{Nav,TuiEvent},
+    ai_query::AI,
+    fragment::Fragment,
+    fragment_evaluation::FragmentEvaluation,
+    tui::{Nav, TuiEvent},
 };
 use crossterm::event::KeyEventKind;
 use futures_util::{FutureExt, StreamExt};
@@ -21,6 +24,7 @@ async fn gather_data(
         tx_tui
             .send(TuiEvent::GatherNextFragment(fragment.clone()))
             .await?;
+        tx_tui.send(TuiEvent::Render).await?;
         let value = ai.query(&fragment.content).await?;
         tx_tui.send(TuiEvent::GatherNextValue(value)).await?;
         tx_tui.send(TuiEvent::GatherIncrementCount).await?;
@@ -29,6 +33,7 @@ async fn gather_data(
             value,
         });
     }
+    tx_tui.send(TuiEvent::Render).await?;
 
     eval.sort_by(|a, b| b.value.partial_cmp(&a.value).expect("Order expected"));
 
@@ -37,6 +42,7 @@ async fn gather_data(
 
 async fn finish(eval: Vec<FragmentEvaluation>, tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
     tx_tui.send(TuiEvent::SwitchToDisplayData(eval)).await?;
+    tx_tui.send(TuiEvent::Render).await?;
     Ok(())
 }
 
@@ -57,7 +63,7 @@ async fn input_and_process(
     let input = process_input(tx_tui);
 
     futures::pin_mut!(main, input);
-    loop {
+    let input_result = loop {
         select! {
             main_result = &mut main => {
                 // when main is done, we must still wait for input to finish
@@ -65,13 +71,20 @@ async fn input_and_process(
             },
             input_result = &mut input => {
                 // when input is done, we can return
-                return input_result;
+                break input_result;
             }
         }
-    }
+    };
+    tx_tui.send(TuiEvent::Quit).await?;
+    input_result
 }
 
 async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
+    enum RenderDecision {
+        DoRender,
+        DontRender,
+    }
+
     let mut reader = crossterm::event::EventStream::new();
 
     loop {
@@ -79,33 +92,44 @@ async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
             Some(Ok(event)) => match event {
                 crossterm::event::Event::Key(key) => {
                     if key.kind == KeyEventKind::Press {
-                        match key.code {
+                        let render_decision = match key.code {
                             crossterm::event::KeyCode::Char('q')
                             | crossterm::event::KeyCode::Esc => {
-                                tx_tui.send(TuiEvent::Quit).await?;
                                 break;
                             }
                             crossterm::event::KeyCode::Up => {
                                 tx_tui.send(TuiEvent::Nav(Nav::Up)).await?;
+                                RenderDecision::DoRender
                             }
                             crossterm::event::KeyCode::Down => {
                                 tx_tui.send(TuiEvent::Nav(Nav::Down)).await?;
+                                RenderDecision::DoRender
                             }
                             crossterm::event::KeyCode::PageUp => {
                                 tx_tui.send(TuiEvent::Nav(Nav::PageUp)).await?;
+                                RenderDecision::DoRender
                             }
                             crossterm::event::KeyCode::PageDown => {
                                 tx_tui.send(TuiEvent::Nav(Nav::PageDown)).await?;
+                                RenderDecision::DoRender
                             }
                             crossterm::event::KeyCode::Home => {
                                 tx_tui.send(TuiEvent::Nav(Nav::Home)).await?;
+                                RenderDecision::DoRender
                             }
                             crossterm::event::KeyCode::End => {
                                 tx_tui.send(TuiEvent::Nav(Nav::End)).await?;
+                                RenderDecision::DoRender
                             }
-                            _ => {}
-                        }
+                            _ => RenderDecision::DontRender,
+                        };
+                        if matches!(render_decision, RenderDecision::DoRender) {
+                            tx_tui.send(TuiEvent::Render).await?;
+                        };
                     }
+                }
+                crossterm::event::Event::Resize(_, _) => {
+                    tx_tui.send(TuiEvent::Render).await?;
                 }
                 _ => {}
             },
@@ -148,9 +172,7 @@ async fn main() -> anyhow::Result<()> {
         .collect::<Vec<_>>();
 
     let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(8);
-    let tui = tokio::spawn(
-        tui::Tui::new(fragments.len(), std::time::Duration::from_millis(50)).run(rx_tui),
-    );
+    let tui = tokio::spawn(tui::Tui::new(fragments.len()).run(rx_tui));
 
     let result = input_and_process(fragments, &std::convert::identity(tx_tui), ai).await;
 
