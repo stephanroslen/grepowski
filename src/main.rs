@@ -54,7 +54,7 @@ async fn main_flow(
     finish(gather_data(fragments, tx_tui, ai).await?, tx_tui).await
 }
 
-async fn input_and_process(
+async fn input_and_main_flow(
     fragments: impl AsRef<[Fragment]>,
     tx_tui: &Sender<TuiEvent>,
     ai: AI,
@@ -174,7 +174,7 @@ async fn main() -> anyhow::Result<()> {
     let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(8);
     let tui = tokio::spawn(tui::Tui::new(fragments.len()).run(rx_tui));
 
-    let result = input_and_process(fragments, &std::convert::identity(tx_tui), ai).await;
+    let result = input_and_main_flow(fragments, &std::convert::identity(tx_tui), ai).await;
 
     tui.await??;
 
