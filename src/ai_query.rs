@@ -1,4 +1,55 @@
 use serde::Serialize;
+use serde_json::Value;
+use std::fmt::Debug;
+
+pub trait AiQueryConfig: Debug + Send {
+    fn system_prompt(&self) -> String;
+    fn response_format(&self) -> Value;
+    fn max_tokens(&self) -> usize;
+    fn result_extractor(&self, content: &str) -> anyhow::Result<f32>;
+}
+
+impl<T: AiQueryConfig + 'static> From<T> for Box<dyn AiQueryConfig> {
+    fn from(t: T) -> Self {
+        Box::new(t)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DefaultAiQueryConfig;
+
+impl AiQueryConfig for DefaultAiQueryConfig {
+    fn system_prompt(&self) -> String {
+        "You are an evaluation model. Output only a score as a floating point number in the range 0 to 1 with exactly three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code provided in the user prompt. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not use only extreme values. Spread your outputs across the full range when appropriate. Do not default to the given numbers. Interpolate according to your certainty between them. Use intermediate values whenever the evidence is partial or suggestive.".to_string()
+    }
+
+    fn response_format(&self) -> Value {
+        serde_json::json!({"type": "json_schema", "json_schema": {
+          "name": "score",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "score": { "type": "number" }
+            },
+            "required": ["score"]
+          }
+        }})
+    }
+
+    fn max_tokens(&self) -> usize {
+        30
+    }
+
+    fn result_extractor(&self, content: &str) -> anyhow::Result<f32> {
+        let content: serde_json::Value = serde_json::from_str(content)?;
+        let result = content["score"]
+            .as_f64()
+            .ok_or(anyhow::anyhow!("Score not found in response {:?}", content))?
+            as f32;
+
+        Ok(result)
+    }
+}
 
 #[derive(Serialize, Clone, Debug)]
 struct ChatRequestMessage {
@@ -12,14 +63,15 @@ struct ChatRequest {
     messages: Vec<ChatRequestMessage>,
     temperature: f32,
     max_tokens: usize,
+    stream: bool,
+    response_format: Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ChatRequestFactory {
     model: String,
     temperature: f32,
-    max_tokens: usize,
-    system_prompt: String,
+    ai_query_config: Box<dyn AiQueryConfig>,
     question: String,
 }
 
@@ -27,15 +79,14 @@ impl ChatRequestFactory {
     fn new(
         model: String,
         temperature: f32,
-        max_tokens: usize,
-        system_prompt: String,
+        ai_query_config: impl Into<Box<dyn AiQueryConfig>>,
         question: String,
     ) -> Self {
+        let ai_query_config = ai_query_config.into();
         Self {
             model,
             temperature,
-            max_tokens,
-            system_prompt,
+            ai_query_config,
             question,
         }
     }
@@ -43,7 +94,11 @@ impl ChatRequestFactory {
     fn create_system_message(&self) -> ChatRequestMessage {
         ChatRequestMessage {
             role: "system".to_string(),
-            content: format!("{} Question: {}", self.system_prompt, self.question),
+            content: format!(
+                "{} Question: {}",
+                self.ai_query_config.system_prompt(),
+                self.question
+            ),
         }
     }
 
@@ -59,11 +114,15 @@ impl ChatRequestFactory {
             self.create_system_message(),
             self.create_user_message(code.into()),
         ];
+        let response_format = self.ai_query_config.response_format();
+        let max_tokens = self.ai_query_config.max_tokens();
         ChatRequest {
             model: self.model.clone(),
             messages,
             temperature: self.temperature,
-            max_tokens: self.max_tokens,
+            max_tokens,
+            stream: false,
+            response_format,
         }
     }
 
@@ -76,49 +135,67 @@ pub struct AI {
     chat_request_factory: ChatRequestFactory,
     client: reqwest::Client,
     url: String,
+    auth_token: Option<String>,
 }
 
 impl AI {
     pub fn new(
         model: impl Into<String>,
         url: impl Into<String>,
+        auth_token: Option<String>,
         temperature: f32,
-        max_tokens: usize,
-        system_prompt: impl Into<String>,
+        ai_query_config: impl Into<Box<dyn AiQueryConfig>>,
         question: impl Into<String>,
     ) -> Self {
-        let chat_request_factory = ChatRequestFactory::new(
-            model.into(),
-            temperature,
-            max_tokens,
-            system_prompt.into(),
-            question.into(),
-        );
+        let chat_request_factory =
+            ChatRequestFactory::new(model.into(), temperature, ai_query_config, question.into());
         let client = reqwest::Client::new();
         let url = url.into();
         Self {
             chat_request_factory,
             client,
             url,
+            auth_token,
         }
     }
 
     pub async fn query(&self, code: impl AsRef<str>) -> anyhow::Result<f32> {
         let chat_request = self.chat_request_factory.create_json(code.as_ref())?;
+
+        let url = reqwest::Url::parse(&format!("{}/chat/completions", self.url))?;
+
         let request = self
             .client
-            .post(reqwest::Url::parse(&self.url)?)
+            .post(url)
             .body(chat_request)
-            .build()?;
-        let response = self.client.execute(request).await?;
-        let response: serde_json::Value = serde_json::from_str(&response.text().await?)?;
-        let response = response.get("choices").ok_or(anyhow::anyhow!("No choices in response"))?;
-        let response = response.get(0).ok_or(anyhow::anyhow!("No choice in response"))?;
-        let response = response.get("message").ok_or(anyhow::anyhow!("No message in response"))?;
-        let response = response.get("content").ok_or(anyhow::anyhow!("No content in response"))?;
-        let response = response.as_str().ok_or(anyhow::anyhow!("No string content in response"))?;
-        let response : f32 = response.parse()?;
+            .header("Content-Type", "application/json");
+        let request = match &self.auth_token {
+            Some(auth_token) => request.bearer_auth(auth_token),
+            None => request,
+        };
+        let request = request.build()?;
 
-        Ok(response)
+        let response = self.client.execute(request).await?;
+        let response: Value = serde_json::from_str(&response.text().await?)?;
+        let response = response
+            .get("choices")
+            .ok_or(anyhow::anyhow!("No choices in response: {:?}", response))?;
+        let response = response
+            .get(0)
+            .ok_or(anyhow::anyhow!("No choice in response: {:?}", response))?;
+        let response = response
+            .get("message")
+            .ok_or(anyhow::anyhow!("No message in response: {:?}", response))?;
+        let response = response
+            .get("content")
+            .ok_or(anyhow::anyhow!("No content in response: {:?}", response))?;
+        let response = response.as_str().ok_or(anyhow::anyhow!(
+            "No string content in response: {:?}",
+            response
+        ))?;
+
+        self.chat_request_factory
+            .ai_query_config
+            .result_extractor(response)
     }
 }

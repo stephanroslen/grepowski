@@ -46,11 +46,21 @@ pub struct Args {
         long,
         value_name = "URL",
         env = "GREPOWSKI_URL",
-        default_value = "http://127.0.0.1:8080/v1/chat/completions",
+        default_value = "http://127.0.0.1:8080/v1",
         help = "URL of the chat completion endpoint",
         value_hint = clap::ValueHint::Url,
     )]
     pub url: String,
+
+    #[clap(
+        short,
+        long,
+        value_name = "TOKEN",
+        env = "GREPOWSKI_AUTH_TOKEN",
+        hide_env_values = true,
+        help = "Bearer token for the chat completion endpoint - if not set, the model will be used anonymously"
+    )]
+    pub auth_token: Option<String>,
 
     #[clap(value_name = "QUESTION", help = "Question to ask the model")]
     pub question: String,
