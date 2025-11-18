@@ -149,8 +149,6 @@ async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
 async fn main() -> anyhow::Result<()> {
     let args = args::parse();
 
-    println!("{:?}", args);
-
     let ai = AI::new(
         args.model,
         args.url,
