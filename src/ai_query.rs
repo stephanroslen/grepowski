@@ -6,7 +6,7 @@ pub trait AiQueryConfig: Debug + Send {
     fn system_prompt(&self) -> String;
     fn response_format(&self) -> Value;
     fn max_tokens(&self) -> usize;
-    fn result_extractor(&self, content: &str) -> anyhow::Result<f32>;
+    fn extract_result(&self, content: &str) -> anyhow::Result<f32>;
 }
 
 impl<T: AiQueryConfig + 'static> From<T> for Box<dyn AiQueryConfig> {
@@ -20,7 +20,7 @@ pub struct DefaultAiQueryConfig;
 
 impl AiQueryConfig for DefaultAiQueryConfig {
     fn system_prompt(&self) -> String {
-        "You are an evaluation model. Output only a score as a floating point number in the range 0 to 1 with up to three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code fragment provided in the user prompt. The code is cut arbitrarily cut from the source file. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not default to the given values, but spread your output value across the full range from 0 to 1 interpolating between the values according to your assessment.".to_string()
+        "You are an evaluation model. In JSON according to the schema output only a the score as a floating point number in the range 0 to 1 with up to three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code fragment provided in the user prompt. The code is cut arbitrarily cut from the source file. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not default to the given values, but spread your output value across the full range from 0 to 1 interpolating between the values according to your assessment.".to_string()
     }
 
     fn response_format(&self) -> Value {
@@ -40,7 +40,7 @@ impl AiQueryConfig for DefaultAiQueryConfig {
         50
     }
 
-    fn result_extractor(&self, content: &str) -> anyhow::Result<f32> {
+    fn extract_result(&self, content: &str) -> anyhow::Result<f32> {
         let content: Value = serde_json::from_str(content)
             .map_err(|e| anyhow::anyhow!("error parsing {}: {}", content, e))?;
         let result = content["score"]
@@ -197,6 +197,6 @@ impl AI {
 
         self.chat_request_factory
             .ai_query_config
-            .result_extractor(response)
+            .extract_result(response)
     }
 }
