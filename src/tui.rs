@@ -21,11 +21,11 @@ const COLOR_TEXT: Color = tailwind::AMBER.c200;
 const COLOR_BORDER: Color = tailwind::AMBER.c800;
 const COLOR_BACKGROUND: Color = tailwind::BLACK;
 
-const EFFECT_WIDTH: f32 = 20.0;
-const EFFECT_STRENGTH: f32 = 50.0;
+const EFFECT_WIDTH: f32 = 50.0;
+const EFFECT_STRENGTH: f32 = 25.0;
 const EFFECT_MILLIS: u32 = 2500;
 const EFFECT_DELAY_MILLIS: u32 = 7500;
-const INITIAL_EFFECT_MILLIS: u32 = 1000;
+const INITIAL_EFFECT_MILLIS: u32 = 500;
 const INITIAL_EFFECT_DELAY_MILLIS: u32 = 4000;
 
 const EXTRA_RENDER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(15);
