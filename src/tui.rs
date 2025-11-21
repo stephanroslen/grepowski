@@ -11,14 +11,24 @@ use ratatui::{
         style::{Stylize, palette::tailwind},
     },
 };
-use std::collections::VecDeque;
-use tokio::select;
+use std::{collections::VecDeque, time::Instant};
+use tachyonfx::{EffectRenderer, color_from_hsl, color_to_hsl};
+use tokio::{select, time::MissedTickBehavior};
 
 const COLOR_TITLE: Color = tailwind::AMBER.c50;
 const COLOR_HIGHLIGHT: Color = tailwind::AMBER.c100;
 const COLOR_TEXT: Color = tailwind::AMBER.c200;
 const COLOR_BORDER: Color = tailwind::AMBER.c800;
 const COLOR_BACKGROUND: Color = tailwind::BLACK;
+
+const EFFECT_WIDTH: f32 = 20.0;
+const EFFECT_STRENGTH: f32 = 50.0;
+const EFFECT_MILLIS: u32 = 2500;
+const EFFECT_DELAY_MILLIS: u32 = 7500;
+const INITIAL_EFFECT_MILLIS: u32 = 1000;
+const INITIAL_EFFECT_DELAY_MILLIS: u32 = 4000;
+
+const EXTRA_RENDER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(15);
 
 #[derive(Debug, Clone)]
 struct GatherDataState {
@@ -59,24 +69,91 @@ impl DisplayDataState {
 }
 
 #[derive(Debug, Clone)]
-enum TuiState {
+enum TuiDeepState {
     GatherData(GatherDataState),
     DisplayData(DisplayDataState),
 }
 
+#[derive(Debug, Clone)]
+struct TuiState {
+    state: TuiDeepState,
+    last_instant: Option<Instant>,
+    effect: tachyonfx::Effect,
+}
+
 impl TuiState {
     fn new(count_max: usize) -> Self {
-        Self::GatherData(GatherDataState::new(count_max))
+        let state = TuiDeepState::GatherData(GatherDataState::new(count_max));
+
+        let last_instant = None;
+
+        let effect = tachyonfx::fx::effect_fn(
+            (),
+            tachyonfx::EffectTimer::from_ms(EFFECT_MILLIS, tachyonfx::Interpolation::Linear),
+            |_, context, cells| {
+                let area = context.area;
+                let diag_area_dim = (area.width + area.height) as f32;
+                let diag_range_min = -EFFECT_WIDTH;
+                let diag_range_max = diag_area_dim + EFFECT_WIDTH;
+                let total_diag_range = diag_range_max - diag_range_min;
+                let progress = context.alpha();
+
+                let effect_width_rel = EFFECT_WIDTH / total_diag_range;
+
+                for (position, cell) in cells {
+                    let x_rel = position.x - area.x;
+                    let y_rel = position.y - area.y;
+                    let diag_pos = (x_rel + y_rel) as f32;
+
+                    let pos_rel = (diag_pos - diag_range_min) / (diag_range_max - diag_range_min);
+
+                    let diff = (progress - pos_rel).abs();
+
+                    if diff < effect_width_rel {
+                        let (h, s, mut l) = color_to_hsl(&cell.fg);
+                        l += EFFECT_STRENGTH * (effect_width_rel - diff) / effect_width_rel;
+                        cell.fg = color_from_hsl(h, s, l);
+                    }
+                }
+            },
+        )
+        .reversed();
+        let sleep = tachyonfx::fx::sleep(EFFECT_DELAY_MILLIS);
+        let effect = tachyonfx::fx::sequence(&[effect, sleep]);
+        let effect = tachyonfx::fx::repeating(effect);
+
+        let initial_effect = tachyonfx::fx::coalesce(INITIAL_EFFECT_MILLIS);
+        let sleep = tachyonfx::fx::sleep(INITIAL_EFFECT_DELAY_MILLIS);
+        let initial_effect = tachyonfx::fx::sequence(&[initial_effect, sleep]);
+
+        let effect = tachyonfx::fx::sequence(&[initial_effect, effect]);
+
+        Self {
+            state,
+            last_instant,
+            effect,
+        }
     }
 
     fn render(&mut self, frame: &mut Frame) {
-        match self {
-            TuiState::GatherData(state) => {
+        match &mut self.state {
+            TuiDeepState::GatherData(state) => {
                 Self::render_gather_data(frame, state);
             }
-            TuiState::DisplayData(state) => {
+            TuiDeepState::DisplayData(state) => {
                 Self::render_display_data(frame, state);
             }
+        }
+
+        let now = Instant::now();
+        let elapsed = self
+            .last_instant
+            .map_or(std::time::Duration::ZERO, |last| now - last)
+            .into();
+        self.last_instant = Some(now);
+
+        if self.effect.running() {
+            frame.render_effect(&mut self.effect, frame.area(), elapsed);
         }
     }
 
@@ -263,37 +340,50 @@ impl Tui {
         Self { tui_state }
     }
 
+    fn render(&mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
+        terminal.draw(|frame| self.tui_state.render(frame))?;
+
+        Ok(())
+    }
+
     async fn main_loop(
         &mut self,
         mut rx: tokio::sync::mpsc::Receiver<TuiEvent>,
         terminal: &mut DefaultTerminal,
     ) -> anyhow::Result<()> {
+        let mut extra_render_timer = tokio::time::interval(EXTRA_RENDER_INTERVAL);
+        extra_render_timer.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
         loop {
             select! {
+                _ = extra_render_timer.tick() => {
+                    self.render(terminal)?;
+                }
                 event = rx.recv() => {
                     match event {
                         Some(TuiEvent::Render) => {
-                            terminal.draw(|frame| self.tui_state.render(frame))?; },
+                            self.render(terminal)?;
+                        },
                         Some(TuiEvent::GatherNextFragment(fragment)) => {
-                            let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
+                            let TuiDeepState::GatherData(state) = &mut self.tui_state.state else { break Err(anyhow::anyhow!("GatherData state expected"))};
                             state.current_fragment = Some(fragment);
                         },
                         Some(TuiEvent::GatherNextValue(value)) => {
-                            let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
+                            let TuiDeepState::GatherData(state) = &mut self.tui_state.state else { break Err(anyhow::anyhow!("GatherData state expected"))};
                             state.value_history.push_back(value);
                         },
                         Some(TuiEvent::GatherIncrementCount) => {
-                            let TuiState::GatherData(state) = &mut self.tui_state else { break Err(anyhow::anyhow!("GatherData state expected"))};
+                            let TuiDeepState::GatherData(state) = &mut self.tui_state.state else { break Err(anyhow::anyhow!("GatherData state expected"))};
                             state.count += 1;
                         },
                         Some(TuiEvent::SwitchToDisplayData(data)) => {
-                            self.tui_state = TuiState::DisplayData(DisplayDataState::new(data));
+                            self.tui_state.state = TuiDeepState::DisplayData(DisplayDataState::new(data));
                         }
                         Some(TuiEvent::Quit) | None => {
                             return Ok(())
                         },
                         Some(TuiEvent::Nav(nav)) => {
-                            if let TuiState::DisplayData(state) = &mut self.tui_state {
+                            if let TuiDeepState::DisplayData(state) = &mut self.tui_state.state {
                                 match nav {
                                     Nav::Up => {
                                     state.current_idx = state.current_idx.saturating_sub(1);
