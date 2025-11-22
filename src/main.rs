@@ -63,11 +63,13 @@ async fn input_and_main_flow(
     let input = process_input(tx_tui);
 
     futures::pin_mut!(main, input);
-    let input_result = loop {
+    let result = loop {
         select! {
             main_result = &mut main => {
-                // when main is done, we must still wait for input to finish
-                main_result?;
+                // when main is done without error, we must still wait for input to finish
+                if main_result.is_err() {
+                    break main_result
+                }
             },
             input_result = &mut input => {
                 // when input is done, we can return
@@ -76,7 +78,7 @@ async fn input_and_main_flow(
         }
     };
     tx_tui.send(TuiEvent::Quit).await?;
-    input_result
+    result
 }
 
 async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
