@@ -124,7 +124,7 @@ impl TuiState {
             tachyonfx::CellFilter::FgColor(COLOR_BORDER),
             tachyonfx::CellFilter::FgColor(COLOR_TITLE),
         ]);
-        let effect = effect.with_filter(main_filter);
+        let effect = effect.with_filter(main_filter.clone());
 
         let sleep = tachyonfx::fx::sleep(EFFECT_DELAY_MILLIS);
         let effect = tachyonfx::fx::sequence(&[effect, sleep]);
@@ -133,6 +133,9 @@ impl TuiState {
         let initial_effect = tachyonfx::fx::coalesce(INITIAL_EFFECT_MILLIS);
         let sleep = tachyonfx::fx::sleep(INITIAL_EFFECT_DELAY_MILLIS);
         let initial_effect = tachyonfx::fx::sequence(&[initial_effect, sleep]);
+
+        let inverse_main_filter = tachyonfx::CellFilter::Not(main_filter.into());
+        let initial_effect = initial_effect.with_filter(inverse_main_filter);
 
         let effect = tachyonfx::fx::sequence(&[initial_effect, effect]);
 
