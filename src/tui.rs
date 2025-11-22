@@ -15,12 +15,12 @@ use std::{collections::VecDeque, time::Instant};
 use tachyonfx::{EffectRenderer, color_from_hsl, color_to_hsl};
 use tokio::{select, time::MissedTickBehavior};
 
-const COLOR_TITLE: Color = tailwind::AMBER.c50;
-const COLOR_HIGHLIGHT: Color = tailwind::AMBER.c100;
-const COLOR_TEXT: Color = tailwind::AMBER.c200;
-const COLOR_GAUGE: Color = tailwind::AMBER.c600;
-const COLOR_BORDER: Color = tailwind::AMBER.c800;
-const COLOR_BACKGROUND: Color = tailwind::BLACK;
+const COLOR_TITLE: Color = Color::Rgb(0xf8, 0x61, 0xb4);
+const COLOR_HIGHLIGHT: Color = Color::Rgb(0x00, 0xd3, 0xbb);
+const COLOR_TEXT: Color = Color::Rgb(0xa1, 0xb1, 0xff);
+const COLOR_GAUGE: Color = Color::Rgb(0x50, 0x03, 0x23);
+const COLOR_BORDER: Color = Color::Rgb(0x42, 0x2a, 0xd5);
+const COLOR_BACKGROUND: Color = Color::Rgb(0x09, 0x00, 0x2f);
 
 const EFFECT_WIDTH: f32 = 50.0;
 const EFFECT_STRENGTH: f32 = 50.0;
