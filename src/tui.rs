@@ -18,11 +18,12 @@ use tokio::{select, time::MissedTickBehavior};
 const COLOR_TITLE: Color = tailwind::AMBER.c50;
 const COLOR_HIGHLIGHT: Color = tailwind::AMBER.c100;
 const COLOR_TEXT: Color = tailwind::AMBER.c200;
+const COLOR_GAUGE: Color = tailwind::AMBER.c600;
 const COLOR_BORDER: Color = tailwind::AMBER.c800;
 const COLOR_BACKGROUND: Color = tailwind::BLACK;
 
 const EFFECT_WIDTH: f32 = 50.0;
-const EFFECT_STRENGTH: f32 = 25.0;
+const EFFECT_STRENGTH: f32 = 50.0;
 const EFFECT_MILLIS: u32 = 2500;
 const EFFECT_DELAY_MILLIS: u32 = 7500;
 const INITIAL_EFFECT_MILLIS: u32 = 500;
@@ -118,6 +119,13 @@ impl TuiState {
             },
         )
         .reversed();
+
+        let main_filter = tachyonfx::CellFilter::AnyOf(vec![
+            tachyonfx::CellFilter::FgColor(COLOR_BORDER),
+            tachyonfx::CellFilter::FgColor(COLOR_TITLE),
+        ]);
+        let effect = effect.with_filter(main_filter);
+
         let sleep = tachyonfx::fx::sleep(EFFECT_DELAY_MILLIS);
         let effect = tachyonfx::fx::sequence(&[effect, sleep]);
         let effect = tachyonfx::fx::repeating(effect);
@@ -188,7 +196,7 @@ impl TuiState {
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .set_style(COLOR_BORDER)
-                    .title("Fragments".set_style(COLOR_TITLE)),
+                    .title(" Fragments ".set_style(COLOR_TITLE)),
             )
             .set_style(COLOR_TEXT)
             .highlight_style(COLOR_HIGHLIGHT)
@@ -239,7 +247,7 @@ impl TuiState {
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .title("Value history".set_style(COLOR_TITLE)),
+                    .title(" Value history ".set_style(COLOR_TITLE)),
             )
             .x_axis(
                 Axis::default()
@@ -254,12 +262,12 @@ impl TuiState {
 
         frame.render_widget(
             Gauge::default()
-                .gauge_style(COLOR_BORDER)
+                .gauge_style(COLOR_GAUGE)
                 .block(
                     Block::bordered()
                         .set_style(COLOR_BORDER)
                         .border_type(BorderType::Rounded)
-                        .title("Progress".set_style(COLOR_TITLE)),
+                        .title(" Progress ".set_style(COLOR_TITLE)),
                 )
                 .ratio(state.count as f64 / state.count_max as f64)
                 .label(format!("{}/{}", state.count, state.count_max).set_style(COLOR_TEXT))
@@ -287,7 +295,7 @@ impl TuiState {
                             .set_style(COLOR_BORDER)
                             .title(
                                 format!(
-                                    "{}:{}",
+                                    " {}:{} ",
                                     fragment.path.to_str().unwrap(),
                                     fragment.first_line
                                 )
@@ -301,7 +309,7 @@ impl TuiState {
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .set_style(COLOR_BORDER)
-                    .title("Current code fragment".set_style(COLOR_TITLE))
+                    .title(" Current code fragment ".set_style(COLOR_TITLE))
                     .bg(COLOR_BACKGROUND),
             ),
         }
