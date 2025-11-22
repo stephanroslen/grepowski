@@ -13,7 +13,7 @@ use std::{collections::VecDeque, time::Instant};
 use tachyonfx::{EffectRenderer, color_from_hsl, color_to_hsl};
 use tokio::{select, time::MissedTickBehavior};
 
-const EFFECT_WIDTH: f32 = 50.0;
+const EFFECT_WIDTH: f32 = 20.0;
 const EFFECT_STRENGTH: f32 = 50.0;
 const EFFECT_MILLIS: u32 = 2500;
 const EFFECT_DELAY_MILLIS: u32 = 7500;
