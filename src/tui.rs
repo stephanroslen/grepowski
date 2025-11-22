@@ -6,10 +6,7 @@ use ratatui::{
     widgets::{
         Axis, Block, BorderType, Chart, Dataset, Gauge, ListItem, ListState, Paragraph, Wrap,
     },
-    {
-        DefaultTerminal, Frame,
-        style::{Stylize, palette::tailwind},
-    },
+    {DefaultTerminal, Frame, style::Stylize},
 };
 use std::{collections::VecDeque, time::Instant};
 use tachyonfx::{EffectRenderer, color_from_hsl, color_to_hsl};
