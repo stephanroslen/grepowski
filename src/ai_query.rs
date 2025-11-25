@@ -24,16 +24,18 @@ impl AiQueryConfig for DefaultAiQueryConfig {
     }
 
     fn response_format(&self) -> Value {
-        serde_json::json!({"type": "json_schema", "json_schema": {
-          "name": "score",
-          "schema": {
-            "type": "object",
-            "properties": {
-              "score": { "type": "number" }
-            },
-            "required": ["score"]
-          }
-        }})
+        serde_json::json!({"type": "json_schema",
+            "strict": true,
+            "schema": {
+                "name": "score",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "score": { "type": "number" }
+                    },
+                    "required": ["score"]
+                }
+            }})
     }
 
     fn max_tokens(&self) -> usize {

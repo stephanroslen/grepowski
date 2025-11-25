@@ -1,39 +1,133 @@
 use std::path::{Path, PathBuf};
 
+use crate::tui::{SyntectTheme, Theme};
+use ratatui::text::{Line, Span};
+use std::sync::Arc;
+use syntect::{easy::HighlightLines, parsing::SyntaxSet, util::LinesWithEndings};
+use syntect_tui::into_span;
+
+#[derive(Debug, Clone)]
+struct FileLine {
+    line: String,
+    highlighted_line: Line<'static>,
+}
+
 #[derive(Debug, Clone)]
 struct File {
     path: PathBuf,
-    content: String,
+    content: Vec<FileLine>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Fragment {
-    pub path: PathBuf,
-    pub first_line: usize,
-    pub content: String,
+    first_line: usize,
+    last_line: usize,
+    file: Arc<File>,
 }
 
 impl File {
-    fn read<P: AsRef<Path>>(file: P) -> anyhow::Result<Self> {
+    fn read<P: AsRef<Path>>(file: P, theme: SyntectTheme) -> anyhow::Result<Self> {
         let path = file.as_ref().to_path_buf();
         let content = std::fs::read_to_string(file)?;
-        Ok(Self { path, content })
+
+        let ext = path.extension().unwrap_or_default();
+
+        let ps = SyntaxSet::load_defaults_newlines();
+
+        let syntax = ps.find_syntax_by_extension(ext.to_str().unwrap()).unwrap();
+
+        let mut highlight = HighlightLines::new(syntax, &theme);
+
+        let lines = content.lines();
+
+        let highlighted_lines =
+            LinesWithEndings::from(&content).flat_map(|line| -> anyhow::Result<Line> {
+                Ok(Line::from_iter(
+                    highlight
+                        .highlight_line(line, &ps)?
+                        .into_iter()
+                        .filter_map(|segment| {
+                            into_span(segment)
+                                .ok()
+                                .map(|span| Span::styled(span.content.into_owned(), span.style))
+                        }),
+                ))
+            });
+
+        let merged: Vec<_> = lines
+            .zip(highlighted_lines)
+            .map(|(line, highlighted_line)| FileLine {
+                line: line.into(),
+                highlighted_line,
+            })
+            .collect();
+
+        let result = Self {
+            path,
+            content: merged,
+        };
+
+        Ok(result)
     }
 
-    pub fn into_fragments(self, lines_per_block: usize, blocks_per_fragment: usize) -> anyhow::Result<Vec<Fragment>> {
-        let lines = self.content.lines().enumerate().collect::<Vec<_>>();
-        let blocks = lines.chunks(lines_per_block).collect::<Vec<_>>();
-        let fragments = blocks.windows(blocks_per_fragment).map(|window| {
-            let path = self.path.clone();
-            let first_line = window[0][0].0;
-            let content = window.into_iter().flat_map(|&block| block.into_iter().map(|(_, line)| line)).cloned().collect::<Vec<_>>().join("\n");
+    pub fn into_fragments(
+        self,
+        lines_per_block: usize,
+        blocks_per_fragment: usize,
+    ) -> Vec<Fragment> {
+        let file = Arc::new(self);
 
-            Fragment {path, first_line, content}
-        }).collect::<Vec<_>>();
-        Ok(fragments)
+        let num_lines = file.content.len();
+        let start_lines = (0..num_lines).step_by(lines_per_block);
+
+        start_lines
+            .map(|first_line| {
+                let last_line = std::cmp::min(
+                    first_line + lines_per_block * blocks_per_fragment,
+                    num_lines - 1,
+                );
+                Fragment {
+                    file: file.clone(),
+                    first_line,
+                    last_line,
+                }
+            })
+            .collect()
     }
 }
 
-pub fn file_to_fragments<P: AsRef<Path>>(file: P, lines_per_block: usize, blocks_per_fragment: usize) -> anyhow::Result<Vec<Fragment>> {
-    File::read(file)?.into_fragments(lines_per_block, blocks_per_fragment)
+impl Fragment {
+    fn content_iter(&self) -> impl Iterator<Item = &FileLine> {
+        self.file
+            .content
+            .iter()
+            .skip(self.first_line)
+            .take(self.last_line - self.first_line + 1)
+    }
+    pub fn content(&self) -> String {
+        self.content_iter()
+            .map(|c| c.line.as_ref())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    pub fn location(&self) -> String {
+        format!("{}:{}", self.file.path.display(), self.first_line)
+    }
+
+    pub fn highlighted_content(&self) -> Vec<Line<'static>> {
+        self.content_iter()
+            .map(|c| c.highlighted_line.clone())
+            .collect::<Vec<_>>()
+    }
+}
+
+pub fn file_to_fragments<P: AsRef<Path>>(
+    file: P,
+    lines_per_block: usize,
+    blocks_per_fragment: usize,
+    theme: Theme,
+) -> anyhow::Result<Vec<Fragment>> {
+    let theme: SyntectTheme = theme.into();
+    Ok(File::read(file, theme)?.into_fragments(lines_per_block, blocks_per_fragment))
 }

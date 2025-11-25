@@ -2,7 +2,7 @@ use crate::{
     ai_query::{AI, DefaultAiQueryConfig},
     fragment::Fragment,
     fragment_evaluation::FragmentEvaluation,
-    tui::{Nav, TuiEvent},
+    tui::{Nav, Theme, TuiEvent},
 };
 use crossterm::event::KeyEventKind;
 use futures_util::{FutureExt, StreamExt};
@@ -25,7 +25,7 @@ async fn gather_data(
             .send(TuiEvent::GatherNextFragment(fragment.clone()))
             .await?;
         tx_tui.send(TuiEvent::Render).await?;
-        let value = ai.query(&fragment.content).await?;
+        let value = ai.query(fragment.content()).await?;
         tx_tui.send(TuiEvent::GatherNextValue(value)).await?;
         tx_tui.send(TuiEvent::GatherIncrementCount).await?;
         eval.push(FragmentEvaluation {
@@ -149,6 +149,8 @@ async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
+    let theme = Theme::synthwave();
+
     let args = args::parse();
 
     let ai = AI::new(
@@ -164,13 +166,13 @@ async fn main() -> anyhow::Result<()> {
         .files
         .iter()
         .flat_map(|file| -> anyhow::Result<Vec<fragment::Fragment>> {
-            fragment::file_to_fragments(file, args.lines_per_block, args.blocks_per_fragment)
+            fragment::file_to_fragments(file, args.lines_per_block, args.blocks_per_fragment, theme)
         })
         .flatten()
         .collect::<Vec<_>>();
 
     let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(8);
-    let tui = tokio::spawn(tui::Tui::new(fragments.len()).run(rx_tui));
+    let tui = tokio::spawn(tui::Tui::new(fragments.len(), theme).run(rx_tui));
 
     let result = input_and_main_flow(fragments, &std::convert::identity(tx_tui), ai).await;
 

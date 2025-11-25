@@ -15,6 +15,8 @@ ratatui = { version = "0.29.0" }
 reqwest = { version = "0.12.24" }
 serde = { version = "1.0.228" }
 serde_json = { version = "1.0.145" }
+syntect = { version = "5.3.0" }
+syntect-tui = { version = "3.0.6" }
 tachyonfx = { version = "0.20.1", features = ["sendable"] }
 tokio = { version = "1.48.0", features = ["macros", "rt"] }
 

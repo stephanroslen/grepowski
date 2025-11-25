@@ -1,7 +1,8 @@
+use crate::tui::{FxFilter, Theme};
 use crate::{fragment::Fragment, fragment_evaluation::FragmentEvaluation};
 use ratatui::{
-    layout::{Constraint, Direction},
-    style::{Color, Styled},
+    layout::{Constraint, Direction, Margin},
+    style::Styled,
     symbols::Marker,
     widgets::{
         Axis, Block, BorderType, Chart, Dataset, Gauge, ListItem, ListState, Paragraph, Wrap,
@@ -11,13 +12,6 @@ use ratatui::{
 use std::{collections::VecDeque, time::Instant};
 use tachyonfx::{EffectRenderer, color_from_hsl, color_to_hsl};
 use tokio::{select, time::MissedTickBehavior};
-
-const COLOR_TITLE: Color = Color::Rgb(0xf8, 0x61, 0xb4);
-const COLOR_HIGHLIGHT: Color = Color::Rgb(0x00, 0xd3, 0xbb);
-const COLOR_TEXT: Color = Color::Rgb(0xa1, 0xb1, 0xff);
-const COLOR_GAUGE: Color = Color::Rgb(0x50, 0x03, 0x23);
-const COLOR_BORDER: Color = Color::Rgb(0x42, 0x2a, 0xd5);
-const COLOR_BACKGROUND: Color = Color::Rgb(0x09, 0x00, 0x2f);
 
 const EFFECT_WIDTH: f32 = 50.0;
 const EFFECT_STRENGTH: f32 = 50.0;
@@ -72,11 +66,12 @@ enum TuiDeepState {
     DisplayData(DisplayDataState),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct TuiState {
     state: TuiDeepState,
     last_instant: Option<Instant>,
     effect: tachyonfx::Effect,
+    fx_filter: FxFilter,
 }
 
 impl TuiState {
@@ -117,11 +112,9 @@ impl TuiState {
         )
         .reversed();
 
-        let main_filter = tachyonfx::CellFilter::AnyOf(vec![
-            tachyonfx::CellFilter::FgColor(COLOR_BORDER),
-            tachyonfx::CellFilter::FgColor(COLOR_TITLE),
-        ]);
-        let effect = effect.with_filter(main_filter.clone());
+        let fx_filter = FxFilter::new(3);
+
+        let effect = effect.with_filter(fx_filter.border_filter());
 
         let sleep = tachyonfx::fx::sleep(EFFECT_DELAY_MILLIS);
         let effect = tachyonfx::fx::sequence(&[effect, sleep]);
@@ -131,8 +124,7 @@ impl TuiState {
         let sleep = tachyonfx::fx::sleep(INITIAL_EFFECT_DELAY_MILLIS);
         let initial_effect = tachyonfx::fx::sequence(&[initial_effect, sleep]);
 
-        let inverse_main_filter = tachyonfx::CellFilter::Not(main_filter.into());
-        let initial_effect = initial_effect.with_filter(inverse_main_filter);
+        let initial_effect = initial_effect.with_filter(fx_filter.main_filter());
 
         let effect = tachyonfx::fx::sequence(&[initial_effect, effect]);
 
@@ -140,16 +132,18 @@ impl TuiState {
             state,
             last_instant,
             effect,
+            fx_filter,
         }
     }
 
-    fn render(&mut self, frame: &mut Frame) {
-        match &mut self.state {
-            TuiDeepState::GatherData(state) => {
-                Self::render_gather_data(frame, state);
+    fn render(&mut self, frame: &mut Frame, theme: Theme) -> anyhow::Result<()> {
+        self.fx_filter.reset();
+        match self.state {
+            TuiDeepState::GatherData(_) => {
+                self.render_gather_data(frame, theme)?;
             }
-            TuiDeepState::DisplayData(state) => {
-                Self::render_display_data(frame, state);
+            TuiDeepState::DisplayData(_) => {
+                self.render_display_data(frame, theme)?;
             }
         }
 
@@ -163,20 +157,20 @@ impl TuiState {
         if self.effect.running() {
             frame.render_effect(&mut self.effect, frame.area(), elapsed);
         }
+
+        Ok(())
     }
 
-    fn render_display_data(frame: &mut Frame, state: &mut DisplayDataState) {
+    fn render_display_data(
+        &mut self,
+        frame: &mut Frame,
+        theme: Theme,
+    ) -> anyhow::Result<()> {
+        let TuiDeepState::DisplayData(state) = &mut self.state else { anyhow::bail!("DisplayData state expected") };
         let items_strings = state
             .eval
             .iter()
-            .map(|e| {
-                format!(
-                    "{}:{} {:.3}",
-                    e.fragment.path.to_str().unwrap(),
-                    e.fragment.first_line,
-                    e.value
-                )
-            })
+            .map(|e| format!("{} {:.3}", e.fragment.location(), e.value))
             .collect::<Vec<_>>();
         let max_len = items_strings.iter().map(|s| s.len()).max().unwrap_or(0);
 
@@ -185,7 +179,14 @@ impl TuiState {
             .constraints([Constraint::Fill(1), Constraint::Length(max_len as u16 + 2)].as_ref())
             .split(frame.area());
 
-        let code = Self::make_code(state.eval.get(state.current_idx).map(|e| &e.fragment));
+        for rect in layout.iter() {
+            self.fx_filter.assign(rect.inner(Margin::new(1, 1)))?;
+        }
+
+        let code = Self::make_code(
+            state.eval.get(state.current_idx).map(|e| &e.fragment),
+            theme,
+        );
 
         frame.render_widget(code, layout[0]);
 
@@ -195,19 +196,26 @@ impl TuiState {
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .set_style(COLOR_BORDER)
-                    .title(" Fragments ".set_style(COLOR_TITLE)),
+                    .set_style(theme.border)
+                    .title(" Fragments ".set_style(theme.title)),
             )
-            .set_style(COLOR_TEXT)
-            .highlight_style(COLOR_HIGHLIGHT)
-            .bg(COLOR_BACKGROUND);
+            .set_style(theme.text)
+            .highlight_style(theme.highlight)
+            .bg(theme.background);
 
         state.list_state.select(Some(state.current_idx));
 
         frame.render_stateful_widget(list, layout[1], &mut state.list_state);
+
+        Ok(())
     }
 
-    fn render_gather_data(frame: &mut Frame, state: &GatherDataState) {
+    fn render_gather_data(
+        &mut self,
+        frame: &mut Frame,
+        theme: Theme,
+    ) -> anyhow::Result<()> {
+        let TuiDeepState::GatherData(state) = &mut self.state else { anyhow::bail!("GatherData state expected") };
         let layout = ratatui::layout::Layout::default()
             .direction(Direction::Vertical)
             .constraints(
@@ -220,9 +228,13 @@ impl TuiState {
             )
             .split(frame.area());
 
+        for rect in layout.iter() {
+            self.fx_filter.assign(rect.inner(Margin::new(1, 1)))?;
+        }
+
         let current_fragment = state.current_fragment.as_ref();
 
-        let code = Self::make_code(current_fragment);
+        let code = Self::make_code(current_fragment, theme);
 
         frame.render_widget(code, layout[0]);
 
@@ -239,7 +251,7 @@ impl TuiState {
         let data = vec![
             Dataset::default()
                 .marker(Marker::Braille)
-                .style(COLOR_TEXT)
+                .style(theme.text)
                 .data(&data),
         ];
 
@@ -247,70 +259,59 @@ impl TuiState {
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .title(" Value history ".set_style(COLOR_TITLE)),
+                    .title(" Value history ".set_style(theme.title)),
             )
             .x_axis(
                 Axis::default()
-                    .style(COLOR_TEXT)
+                    .style(theme.text)
                     .bounds([0.0, (layout[1].width as f64 - 2.0) * 2.0 - 1.0]),
             )
-            .y_axis(Axis::default().style(COLOR_TEXT).bounds([0.0, 1.0]))
-            .style(COLOR_BORDER)
-            .bg(COLOR_BACKGROUND);
+            .y_axis(Axis::default().style(theme.text).bounds([0.0, 1.0]))
+            .style(theme.border)
+            .bg(theme.background);
 
         frame.render_widget(chart, layout[1]);
 
         frame.render_widget(
             Gauge::default()
-                .gauge_style(COLOR_GAUGE)
+                .gauge_style(theme.gauge)
                 .block(
                     Block::bordered()
-                        .set_style(COLOR_BORDER)
+                        .set_style(theme.border)
                         .border_type(BorderType::Rounded)
-                        .title(" Progress ".set_style(COLOR_TITLE)),
+                        .title(" Progress ".set_style(theme.title)),
                 )
                 .ratio(state.count as f64 / state.count_max as f64)
-                .label(format!("{}/{}", state.count, state.count_max).set_style(COLOR_TEXT))
+                .label(format!("{}/{}", state.count, state.count_max).set_style(theme.text))
                 .use_unicode(true)
-                .bg(COLOR_BACKGROUND),
+                .bg(theme.background),
             layout[2],
         );
+
+        Ok(())
     }
 
-    fn make_code(current_fragment: Option<&Fragment>) -> Paragraph<'_> {
+    fn make_code(current_fragment: Option<&Fragment>, theme: Theme) -> Paragraph<'static> {
         match current_fragment {
             Some(fragment) => {
-                let lines: Vec<_> = fragment
-                    .content
-                    .lines()
-                    .map(|l| ratatui::text::Line::from(ratatui::text::Span::raw(l)))
-                    .collect();
-                let code = Paragraph::new(lines)
-                    .set_style(COLOR_TEXT)
-                    .wrap(Wrap { trim: false });
+                let lines = fragment.highlighted_content();
+                let code = Paragraph::new(lines).wrap(Wrap { trim: false });
                 let code = code
                     .block(
                         Block::bordered()
                             .border_type(BorderType::Rounded)
-                            .set_style(COLOR_BORDER)
-                            .title(
-                                format!(
-                                    " {}:{} ",
-                                    fragment.path.to_str().unwrap(),
-                                    fragment.first_line
-                                )
-                                .set_style(COLOR_TITLE),
-                            ),
+                            .set_style(theme.border)
+                            .title(format!(" {} ", fragment.location()).set_style(theme.title)),
                     )
-                    .bg(COLOR_BACKGROUND);
+                    .bg(theme.background);
                 code
             }
             None => Paragraph::new("").block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .set_style(COLOR_BORDER)
-                    .title(" Current code fragment ".set_style(COLOR_TITLE))
-                    .bg(COLOR_BACKGROUND),
+                    .set_style(theme.border)
+                    .title(" Current code fragment ".set_style(theme.title))
+                    .bg(theme.background),
             ),
         }
     }
@@ -340,16 +341,21 @@ pub enum TuiEvent {
 #[derive(Debug)]
 pub struct Tui {
     tui_state: TuiState,
+    theme: Theme,
 }
 
 impl Tui {
-    pub fn new(count_max: usize) -> Self {
+    pub fn new(count_max: usize, theme: Theme) -> Self {
         let tui_state = TuiState::new(count_max);
-        Self { tui_state }
+        Self { tui_state, theme }
     }
 
     fn render(&mut self, terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
-        terminal.draw(|frame| self.tui_state.render(frame))?;
+        terminal.draw(|frame| {
+            self.tui_state
+                .render(frame, self.theme)
+                .expect("Rendering expected")
+        })?;
 
         Ok(())
     }
