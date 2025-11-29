@@ -22,12 +22,13 @@ Arguments:
   <FILES>...  Input files to analyze
 
 Options:
+  -a, --accessibility                 Use accessibility mode colors [env: GREPOWSKI_ACCESSIBILITY_MODE=]
   -l, --lines-per-block <LINES>       Number of lines per block [env: GREPOWSKI_LINES_PER_BLOCK=] [default: 10]
   -b, --blocks-per-fragment <BLOCKS>  Number of blocks per fragment [env: GREPOWSKI_BLOCKS_PER_FRAGMENT=] [default: 3]
   -m, --model <MODEL>                 Model to use for the chat completion [env: GREPOWSKI_MODEL=]
   -t, --temperature <TEMPERATURE>     Temperature for the chat completion [env: GREPOWSKI_TEMPERATURE=] [default: 0.0]
   -u, --url <URL>                     URL of the chat completion endpoint [env: GREPOWSKI_URL=] [default: http://127.0.0.1:8080/v1]
-  -a, --auth-token <TOKEN>            Bearer token for the chat completion endpoint - if not set, the model will be used anonymously [env: GREPOWSKI_AUTH_TOKEN]
+  -t, --auth-token <TOKEN>            Bearer token for the chat completion endpoint - if not set, the model will be used anonymously [env: GREPOWSKI_AUTH_TOKEN]
   -h, --help                          Print help
 ```
 
