@@ -1,4 +1,5 @@
 use clap::{Args as ClapArgs, Parser, Subcommand};
+use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -9,7 +10,13 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    #[command(about = "Ask a question to the configured model")]
     Ask(AskArgs),
+    #[command(about = "Generate shell completions")]
+    Completions {
+        #[clap(value_enum, help = "Shell to generate completions for")]
+        shell: Shell,
+    },
 }
 
 #[derive(ClapArgs, Debug)]

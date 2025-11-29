@@ -4,6 +4,7 @@ use crate::{
     fragment_evaluation::FragmentEvaluation,
     tui::{Nav, Theme, TuiEvent},
 };
+use clap::CommandFactory;
 use crossterm::event::KeyEventKind;
 use futures_util::{FutureExt, StreamExt};
 use tokio::{select, sync::mpsc::Sender};
@@ -149,36 +150,49 @@ async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
-    let theme = Theme::synthwave();
+    let cli = args::parse();
 
-    let args = match args::parse().command {
-        args::Command::Ask(args) => args,
-    };
+    match cli.command {
+        args::Command::Completions { shell } => {
+            let mut command = args::Cli::command();
+            let bin_name = command.get_name().to_string();
+            clap_complete::generate(shell, &mut command, bin_name, &mut std::io::stdout());
+            Ok(())
+        }
+        args::Command::Ask(args) => {
+            let theme = Theme::synthwave();
 
-    let ai = AI::new(
-        args.model,
-        args.url,
-        args.auth_token,
-        args.temperature,
-        DefaultAiQueryConfig,
-        args.question,
-    );
+            let ai = AI::new(
+                args.model,
+                args.url,
+                args.auth_token,
+                args.temperature,
+                DefaultAiQueryConfig,
+                args.question,
+            );
 
-    let fragments = args
-        .files
-        .iter()
-        .flat_map(|file| -> anyhow::Result<Vec<fragment::Fragment>> {
-            fragment::file_to_fragments(file, args.lines_per_block, args.blocks_per_fragment, theme)
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+            let fragments = args
+                .files
+                .iter()
+                .flat_map(|file| -> anyhow::Result<Vec<fragment::Fragment>> {
+                    fragment::file_to_fragments(
+                        file,
+                        args.lines_per_block,
+                        args.blocks_per_fragment,
+                        theme,
+                    )
+                })
+                .flatten()
+                .collect::<Vec<_>>();
 
-    let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(8);
-    let tui = tokio::spawn(tui::Tui::new(fragments.len(), theme).run(rx_tui));
+            let (tx_tui, rx_tui) = tokio::sync::mpsc::channel(8);
+            let tui = tokio::spawn(tui::Tui::new(fragments.len(), theme).run(rx_tui));
 
-    let result = input_and_main_flow(fragments, &std::convert::identity(tx_tui), ai).await;
+            let result = input_and_main_flow(fragments, &std::convert::identity(tx_tui), ai).await;
 
-    tui.await??;
+            tui.await??;
 
-    result
+            result
+        }
+    }
 }
