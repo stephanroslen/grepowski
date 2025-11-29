@@ -161,12 +161,10 @@ impl TuiState {
         Ok(())
     }
 
-    fn render_display_data(
-        &mut self,
-        frame: &mut Frame,
-        theme: Theme,
-    ) -> anyhow::Result<()> {
-        let TuiDeepState::DisplayData(state) = &mut self.state else { anyhow::bail!("DisplayData state expected") };
+    fn render_display_data(&mut self, frame: &mut Frame, theme: Theme) -> anyhow::Result<()> {
+        let TuiDeepState::DisplayData(state) = &mut self.state else {
+            anyhow::bail!("DisplayData state expected")
+        };
         let items_strings = state
             .eval
             .iter()
@@ -197,7 +195,7 @@ impl TuiState {
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .set_style(theme.border)
-                    .title(" Fragments ".set_style(theme.title)),
+                    .title(" Fragments ".set_style(theme.title).bold()),
             )
             .set_style(theme.text)
             .highlight_style(theme.highlight)
@@ -210,12 +208,10 @@ impl TuiState {
         Ok(())
     }
 
-    fn render_gather_data(
-        &mut self,
-        frame: &mut Frame,
-        theme: Theme,
-    ) -> anyhow::Result<()> {
-        let TuiDeepState::GatherData(state) = &mut self.state else { anyhow::bail!("GatherData state expected") };
+    fn render_gather_data(&mut self, frame: &mut Frame, theme: Theme) -> anyhow::Result<()> {
+        let TuiDeepState::GatherData(state) = &mut self.state else {
+            anyhow::bail!("GatherData state expected")
+        };
         let layout = ratatui::layout::Layout::default()
             .direction(Direction::Vertical)
             .constraints(
@@ -259,7 +255,7 @@ impl TuiState {
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
-                    .title(" Value history ".set_style(theme.title)),
+                    .title(" Value history ".set_style(theme.title).bold()),
             )
             .x_axis(
                 Axis::default()
@@ -279,7 +275,7 @@ impl TuiState {
                     Block::bordered()
                         .set_style(theme.border)
                         .border_type(BorderType::Rounded)
-                        .title(" Progress ".set_style(theme.title)),
+                        .title(" Progress ".set_style(theme.title).bold()),
                 )
                 .ratio(state.count as f64 / state.count_max as f64)
                 .label(format!("{}/{}", state.count, state.count_max).set_style(theme.text))
@@ -301,7 +297,11 @@ impl TuiState {
                         Block::bordered()
                             .border_type(BorderType::Rounded)
                             .set_style(theme.border)
-                            .title(format!(" {} ", fragment.location()).set_style(theme.title)),
+                            .title(
+                                format!(" {} ", fragment.location())
+                                    .set_style(theme.title)
+                                    .bold(),
+                            ),
                     )
                     .bg(theme.background);
                 code
@@ -310,7 +310,7 @@ impl TuiState {
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .set_style(theme.border)
-                    .title(" Current code fragment ".set_style(theme.title))
+                    .title(" Current code fragment ".set_style(theme.title).bold())
                     .bg(theme.background),
             ),
         }
