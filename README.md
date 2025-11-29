@@ -4,6 +4,13 @@ The Large Grepowski
 Iterate over fragments of your code base and let a LLM evaluate your question on each fragment. Examine the results with
 a nice tui.
 
+Installation
+------------
+
+```
+cargo install --git https://github.com/stephanroslen/grepowski.git
+```
+
 Usage
 -----
 
@@ -22,13 +29,6 @@ Options:
   -u, --url <URL>                     URL of the chat completion endpoint [env: GREPOWSKI_URL=] [default: http://127.0.0.1:8080/v1]
   -a, --auth-token <TOKEN>            Bearer token for the chat completion endpoint - if not set, the model will be used anonymously [env: GREPOWSKI_AUTH_TOKEN]
   -h, --help                          Print help
-```
-
-Build
------
-
-```
-cargo build --release
 ```
 
 Completions
