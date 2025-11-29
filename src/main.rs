@@ -151,7 +151,9 @@ async fn process_input(tx_tui: &Sender<TuiEvent>) -> anyhow::Result<()> {
 async fn main() -> anyhow::Result<()> {
     let theme = Theme::synthwave();
 
-    let args = args::parse();
+    let args = match args::parse().command {
+        args::Command::Ask(args) => args,
+    };
 
     let ai = AI::new(
         args.model,

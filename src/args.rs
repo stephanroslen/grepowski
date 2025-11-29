@@ -1,7 +1,19 @@
-use clap::Parser;
+use clap::{Args as ClapArgs, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-pub struct Args {
+#[command(author, version, about, long_about = None)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    Ask(AskArgs),
+}
+
+#[derive(ClapArgs, Debug)]
+pub struct AskArgs {
     #[clap(
         short,
         long,
@@ -70,6 +82,6 @@ pub struct Args {
     pub files: Vec<String>,
 }
 
-pub fn parse() -> Args {
-    Args::parse()
+pub fn parse() -> Cli {
+    Cli::parse()
 }
