@@ -1,6 +1,6 @@
-use std::str::FromStr;
 use ratatui::style::Color;
-pub use syntect::highlighting::{Theme as SyntectTheme, Color as SyntectColor};
+use std::str::FromStr;
+pub use syntect::highlighting::{Color as SyntectColor, Theme as SyntectTheme};
 use syntect::highlighting::{ScopeSelectors, StyleModifier, ThemeItem, ThemeSettings};
 use tachyonfx::ToRgbComponents;
 
@@ -23,6 +23,17 @@ impl Theme {
             gauge: Color::Rgb(0x50, 0x03, 0x23),
             border: Color::Rgb(0x42, 0x2a, 0xd5),
             background: Color::Rgb(0x09, 0x00, 0x2f),
+        }
+    }
+
+    pub fn accessibility() -> Self {
+        Self {
+            title: Color::Rgb(0xcc, 0x79, 0xa7),
+            highlight: Color::Rgb(0x00, 0x9e, 0x73),
+            text: Color::Rgb(0x56, 0xb4, 0xe9),
+            gauge: Color::Rgb(0xe6, 0x9f, 0x00),
+            border: Color::Rgb(0x42, 0x2a, 0xd5),
+            background: Color::Rgb(0x00, 0x00, 0x00),
         }
     }
 }
@@ -84,7 +95,3 @@ impl From<Theme> for SyntectTheme {
         theme
     }
 }
-
-
-
-

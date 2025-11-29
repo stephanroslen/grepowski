@@ -23,6 +23,15 @@ pub enum Command {
 pub struct AskArgs {
     #[clap(
         short,
+        long = "accessibility",
+        help = "Use accessibility mode colors",
+        env = "GREPOWSKI_ACCESSIBILITY_MODE",
+        default_value = "false"
+    )]
+    pub accessibility_mode: bool,
+
+    #[clap(
+        short,
         long,
         default_value = "10",
         env = "GREPOWSKI_LINES_PER_BLOCK",
@@ -72,7 +81,7 @@ pub struct AskArgs {
     pub url: String,
 
     #[clap(
-        short,
+        short = 't',
         long,
         value_name = "TOKEN",
         env = "GREPOWSKI_AUTH_TOKEN",

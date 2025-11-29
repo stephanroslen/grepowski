@@ -160,7 +160,11 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         args::Command::Ask(args) => {
-            let theme = Theme::synthwave();
+            let theme = if args.accessibility_mode {
+                Theme::accessibility()
+            } else {
+                Theme::synthwave()
+            };
 
             let ai = AI::new(
                 args.model,
