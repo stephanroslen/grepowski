@@ -22,7 +22,7 @@ Arguments:
   <FILES>...  Input files to analyze
 
 Options:
-  -a, --accessibility                 Use accessibility mode colors [env: GREPOWSKI_ACCESSIBILITY_MODE=]
+  -a, --accessibility                 Use accessibility mode theme [env: GREPOWSKI_ACCESSIBILITY_MODE=]
   -l, --lines-per-block <LINES>       Number of lines per block [env: GREPOWSKI_LINES_PER_BLOCK=] [default: 10]
   -b, --blocks-per-fragment <BLOCKS>  Number of blocks per fragment [env: GREPOWSKI_BLOCKS_PER_FRAGMENT=] [default: 3]
   -m, --model <MODEL>                 Model to use for the chat completion [env: GREPOWSKI_MODEL=]

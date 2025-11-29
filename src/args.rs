@@ -24,7 +24,7 @@ pub struct AskArgs {
     #[clap(
         short,
         long = "accessibility",
-        help = "Use accessibility mode colors",
+        help = "Use accessibility mode theme",
         env = "GREPOWSKI_ACCESSIBILITY_MODE",
         default_value = "false"
     )]
