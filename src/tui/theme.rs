@@ -12,6 +12,7 @@ pub struct Theme {
     pub gauge: Color,
     pub border: Color,
     pub background: Color,
+    pub fx_enabled: bool,
 }
 
 impl Theme {
@@ -23,6 +24,7 @@ impl Theme {
             gauge: Color::Rgb(0x50, 0x03, 0x23),
             border: Color::Rgb(0x42, 0x2a, 0xd5),
             background: Color::Rgb(0x09, 0x00, 0x2f),
+            fx_enabled: true,
         }
     }
 
@@ -34,6 +36,7 @@ impl Theme {
             gauge: Color::Rgb(0xe6, 0x9f, 0x00),
             border: Color::Rgb(0x42, 0x2a, 0xd5),
             background: Color::Rgb(0x00, 0x00, 0x00),
+            fx_enabled: false,
         }
     }
 }

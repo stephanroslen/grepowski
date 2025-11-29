@@ -154,7 +154,7 @@ impl TuiState {
             .into();
         self.last_instant = Some(now);
 
-        if self.effect.running() {
+        if theme.fx_enabled && self.effect.running() {
             frame.render_effect(&mut self.effect, frame.area(), elapsed);
         }
 
