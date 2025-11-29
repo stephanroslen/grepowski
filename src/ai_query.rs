@@ -202,3 +202,15 @@ impl AI {
             .extract_result(response)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{AiQueryConfig, DefaultAiQueryConfig};
+
+    #[test]
+    fn extract_result_parses_score() {
+        let config = DefaultAiQueryConfig;
+        let score = config.extract_result(r#"{"score":0.42}"#).expect("score parsed");
+        assert!((score - 0.42).abs() < f32::EPSILON);
+    }
+}

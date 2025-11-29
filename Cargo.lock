@@ -666,6 +666,7 @@ dependencies = [
  "syntect",
  "syntect-tui",
  "tachyonfx",
+ "tempfile",
  "tokio",
 ]
 

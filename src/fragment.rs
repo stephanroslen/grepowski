@@ -131,3 +131,27 @@ pub fn file_to_fragments<P: AsRef<Path>>(
     let theme: SyntectTheme = theme.into();
     Ok(File::read(file, theme)?.into_fragments(lines_per_block, blocks_per_fragment))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn file_to_fragments_splits_content() -> anyhow::Result<()> {
+        let theme = Theme::synthwave();
+        let dir = tempdir()?;
+        let file_path = dir.path().join("sample.rs");
+        std::fs::write(&file_path, "fn one() {}\nfn two() {}\nfn three() {}\n")?;
+
+        let fragments = file_to_fragments(&file_path, 2, 1, theme)?;
+
+        assert_eq!(fragments.len(), 2);
+        assert_eq!(
+            fragments[0].content(),
+            "fn one() {}\nfn two() {}\nfn three() {}"
+        );
+        assert_eq!(fragments[1].content(), "fn three() {}");
+        Ok(())
+    }
+}
