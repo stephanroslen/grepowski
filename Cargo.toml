@@ -22,7 +22,7 @@ tachyonfx = { version = "0.20.1", features = ["sendable"] }
 tokio = { version = "1.48.0", features = ["macros", "rt"] }
 
 [dev-dependencies]
-tempfile = { version = "3.14.0" }
+tempfile = { version = "3.23.0" }
 
 [profile.release]
 opt-level = 3
