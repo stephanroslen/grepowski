@@ -30,3 +30,18 @@ Build
 ```
 cargo build --release
 ```
+
+Completions
+-----------
+
+```
+Usage: grepowski completions <SHELL>
+
+Arguments:
+  <SHELL>  Shell to generate completions for [possible values: bash, elvish, fish, powershell, zsh]
+
+Options:
+  -h, --help  Print help
+```
+
+E.g. for zsh `eval "$(grepowski completions zsh)"`.
