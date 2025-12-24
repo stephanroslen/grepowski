@@ -25,17 +25,17 @@ impl AiQueryConfig for DefaultAiQueryConfig {
 
     fn response_format(&self) -> Value {
         serde_json::json!({"type": "json_schema",
-            "strict": true,
+        "strict": true,
+        "schema": {
+            "name": "score",
             "schema": {
-                "name": "score",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "score": { "type": "number" }
-                    },
-                    "required": ["score"]
-                }
-            }})
+                "type": "object",
+                "properties": {
+                    "score": { "type": "number" }
+                },
+                "required": ["score"]
+            }
+        }})
     }
 
     fn max_tokens(&self) -> usize {
@@ -210,7 +210,9 @@ mod tests {
     #[test]
     fn extract_result_parses_score() {
         let config = DefaultAiQueryConfig;
-        let score = config.extract_result(r#"{"score":0.42}"#).expect("score parsed");
+        let score = config
+            .extract_result(r#"{"score":0.42}"#)
+            .expect("score parsed");
         assert!((score - 0.42).abs() < f32::EPSILON);
     }
 }
