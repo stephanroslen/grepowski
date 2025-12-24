@@ -20,7 +20,7 @@ pub struct DefaultAiQueryConfig;
 
 impl AiQueryConfig for DefaultAiQueryConfig {
     fn system_prompt(&self) -> String {
-        "You are an evaluation model. For the output use the provided schema. Make the score a floating point number in the range 0 to 1 with up to three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code fragment provided in the user prompt. The code is cut arbitrarily from the source file. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not default to the given values, but spread your output value across the full range from 0 to 1 interpolating between the values according to your assessment.".to_string()
+        "You are an evaluation model. For the output use the provided schema. Make the score a floating point number in the range 0 to 1 with up to three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code fragment provided in the user prompt. The code is cut arbitrarily from the source file. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not default to the given values, but spread your output value across the full range from 0 to 1 interpolating between the values according to your assessment. Respond with the given schema strictly, do not add other fields like explanation and do not vary the name of the score field.".to_string()
     }
 
     fn response_format(&self) -> Value {
