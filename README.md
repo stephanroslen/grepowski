@@ -4,6 +4,8 @@ The Large Grepowski
 Iterate over fragments of your code base and let a LLM evaluate your question on each fragment. Examine the results with
 a nice tui.
 
+![preview gif](./readme-assets/preview.gif)
+
 Installation
 ------------
 
