@@ -20,26 +20,28 @@ pub struct DefaultAiQueryConfig;
 
 impl AiQueryConfig for DefaultAiQueryConfig {
     fn system_prompt(&self) -> String {
-        "You are an evaluation model. For the output use the provided schema. Make the score a floating point number in the range 0 to 1 with up to three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code fragment provided in the user prompt. The code is cut arbitrarily from the source file. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not default to the given values, but spread your output value across the full range from 0 to 1 interpolating between the values according to your assessment. Respond with the given schema strictly, do not add other fields like explanation and do not vary the name of the score field.".to_string()
+        "You are an evaluation model. For the output use the provided schema. Make the score a floating point number in the range 0 to 1 with up to three decimal places. The number must measure how strongly the question stated in the system prompt applies to the code fragment provided in the user prompt. The code is cut arbitrarily from the source file. Use the scale as follows: 0.000 → the statement is entirely false for the code. 0.250 → weak indication. 0.500 → partially true / ambiguous. 0.750 → strongly supported. 1.000 → fully and unambiguously true. Do not default to the given values, but spread your output value across the full range from 0 to 1 interpolating between the values according to your assessment.".to_string()
     }
 
     fn response_format(&self) -> Value {
         serde_json::json!({"type": "json_schema",
-        "strict": true,
-        "schema": {
+        "json_schema": {
+            "strict": true,
             "name": "score",
             "schema": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
+                    "reason": { "type": "string" },
                     "score": { "type": "number" }
                 },
-                "required": ["score"]
+                "required": ["reason", "score"]
             }
         }})
     }
 
     fn max_tokens(&self) -> usize {
-        50
+        10000
     }
 
     fn extract_result(&self, content: &str) -> anyhow::Result<f32> {
@@ -64,8 +66,8 @@ struct ChatRequestMessage {
 struct ChatRequest {
     model: String,
     messages: Vec<ChatRequestMessage>,
-    temperature: f32,
-    max_tokens: usize,
+    temperature: Option<f32>,
+    max_completion_tokens: usize,
     stream: bool,
     response_format: Value,
 }
@@ -73,7 +75,7 @@ struct ChatRequest {
 #[derive(Debug)]
 struct ChatRequestFactory {
     model: String,
-    temperature: f32,
+    temperature: Option<f32>,
     ai_query_config: Box<dyn AiQueryConfig>,
     question: String,
 }
@@ -81,7 +83,7 @@ struct ChatRequestFactory {
 impl ChatRequestFactory {
     fn new(
         model: String,
-        temperature: f32,
+        temperature: Option<f32>,
         ai_query_config: impl Into<Box<dyn AiQueryConfig>>,
         question: String,
     ) -> Self {
@@ -118,12 +120,12 @@ impl ChatRequestFactory {
             self.create_user_message(code.into()),
         ];
         let response_format = self.ai_query_config.response_format();
-        let max_tokens = self.ai_query_config.max_tokens();
+        let max_completion_tokens = self.ai_query_config.max_tokens();
         ChatRequest {
             model: self.model.clone(),
             messages,
             temperature: self.temperature,
-            max_tokens,
+            max_completion_tokens,
             stream: false,
             response_format,
         }
@@ -146,7 +148,7 @@ impl AI {
         model: impl Into<String>,
         url: impl Into<String>,
         auth_token: Option<String>,
-        temperature: f32,
+        temperature: Option<f32>,
         ai_query_config: impl Into<Box<dyn AiQueryConfig>>,
         question: impl Into<String>,
     ) -> Self {
